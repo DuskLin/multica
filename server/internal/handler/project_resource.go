@@ -129,6 +129,7 @@ const (
 	// Only valid when the directory is a git working tree — the daemon
 	// verifies that at task time, since the server can't see the filesystem.
 	localDirectoryModeWorktree = "worktree"
+	localDirectoryModeScript   = "script"
 )
 
 // localDirectoryRef is the JSONB shape stored for resource_type=local_directory.
@@ -146,10 +147,11 @@ type localDirectoryRef struct {
 	DaemonID      string `json:"daemon_id"`
 	Label         string `json:"label,omitempty"`
 	ExecutionMode string `json:"execution_mode,omitempty"`
+	InitScript    string `json:"init_script,omitempty"`
 }
 
-// requireWorktreeCapableDaemon rejects saving a local_directory ref that asks
-// for execution_mode=worktree while the daemon owning the path is too old to
+// requireLocalIsolationCapableDaemon rejects saving a local_directory ref that asks
+// for an isolated execution mode while the daemon owning the path is too old to
 // implement the mode. An old daemon does not know the field exists: it would
 // json-skip it and run tasks IN PLACE, editing the working copy the user
 // explicitly asked to isolate — and it predates the daemon-side unknown-mode
@@ -157,18 +159,18 @@ type localDirectoryRef struct {
 // failure at the moment the user can act on it (upgrade the daemon), instead
 // of as a silently-wrong task later.
 //
-// Residual gap, accepted for now: a daemon downgraded AFTER the resource was
-// saved is not caught here; closing that needs a claim-time gate.
+// The claim-time gate repeats this check against the claiming daemon header,
+// so downgrades after saving cannot silently run tasks in place.
 //
 // Returns true to proceed; on false the 422 response has already been written,
 // using the same daemon_version_unsupported code as the quick-create gate so
 // clients can branch on it.
-func (h *Handler) requireWorktreeCapableDaemon(w http.ResponseWriter, r *http.Request, workspaceID pgtype.UUID, resourceType string, normalizedRef json.RawMessage) bool {
+func (h *Handler) requireLocalIsolationCapableDaemon(w http.ResponseWriter, r *http.Request, workspaceID pgtype.UUID, resourceType string, normalizedRef json.RawMessage) bool {
 	if resourceType != "local_directory" {
 		return true
 	}
 	var ref localDirectoryRef
-	if err := json.Unmarshal(normalizedRef, &ref); err != nil || ref.ExecutionMode != localDirectoryModeWorktree {
+	if err := json.Unmarshal(normalizedRef, &ref); err != nil || (ref.ExecutionMode != localDirectoryModeWorktree && ref.ExecutionMode != localDirectoryModeScript) {
 		return true
 	}
 
@@ -184,26 +186,34 @@ func (h *Handler) requireWorktreeCapableDaemon(w http.ResponseWriter, r *http.Re
 	// its runtime row at registration. Version numbers cannot answer this — a
 	// dev-built daemon reports a git-describe string that the version floor
 	// deliberately exempts (MUL-5707).
-	if daemonAdvertisesWorktree(runtimes, ref.DaemonID) {
+	capability := protocol.DaemonCapabilityLocalWorktreeV1
+	if ref.ExecutionMode == localDirectoryModeScript {
+		capability = protocol.DaemonCapabilityLocalScriptV1
+	}
+	if daemonAdvertisesCapability(runtimes, ref.DaemonID, capability) {
 		return true
 	}
 	// Fail closed when no runtime for this daemon advertises it — including a
 	// daemon_id with no registered runtime at all: a worktree resource that can
 	// never dispatch correctly is worse than a save-time error.
-	writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
+	payload := map[string]any{
 		"error": fmt.Sprintf(
-			"local_directory: %q is set to parallel (worktree) mode, but the Multica runtime on that machine does not support it. Update the Multica app on that machine to the latest version, or keep the resource on in_place.",
-			ref.LocalPath),
-		"code":            "daemon_version_unsupported",
-		"current_version": latestDaemonCLIVersion(runtimes, ref.DaemonID),
-		"min_version":     agentpkg.MinLocalWorktreeCLIVersion,
-		"daemon_id":       ref.DaemonID,
-	})
+			"local_directory: %q is set to parallel (%s) mode, but the Multica runtime on that machine does not support it. Update the Multica app on that machine to the latest version, or keep the resource on in_place.",
+			ref.LocalPath, ref.ExecutionMode),
+		"code":                "daemon_version_unsupported",
+		"current_version":     latestDaemonCLIVersion(runtimes, ref.DaemonID),
+		"required_capability": capability,
+		"daemon_id":           ref.DaemonID,
+	}
+	if ref.ExecutionMode == localDirectoryModeWorktree {
+		payload["min_version"] = agentpkg.MinLocalWorktreeCLIVersion
+	}
+	writeJSON(w, http.StatusUnprocessableEntity, payload)
 	return false
 }
 
-// daemonAdvertisesWorktree reports whether the daemon's MOST RECENTLY SEEN
-// runtime row advertised worktree support.
+// daemonAdvertisesCapability reports whether the daemon's most recently seen
+// runtime row advertised the requested capability.
 //
 // Deliberately not "any row advertised it". Deregistering a runtime only flips
 // the row to offline — its metadata survives — and ListAgentRuntimes returns
@@ -214,7 +224,7 @@ func (h *Handler) requireWorktreeCapableDaemon(w http.ResponseWriter, r *http.Re
 //
 // A row missing the capability is never skipped: being the newest is what makes
 // it authoritative, not whether its answer is convenient.
-func daemonAdvertisesWorktree(runtimes []db.AgentRuntime, daemonID string) bool {
+func daemonAdvertisesCapability(runtimes []db.AgentRuntime, daemonID, capability string) bool {
 	if strings.TrimSpace(daemonID) == "" {
 		return false
 	}
@@ -231,7 +241,7 @@ func daemonAdvertisesWorktree(runtimes []db.AgentRuntime, daemonID string) bool 
 	if newest == nil {
 		return false
 	}
-	return runtimeHasCapability(newest.Metadata, protocol.DaemonCapabilityLocalWorktreeV1)
+	return runtimeHasCapability(newest.Metadata, capability)
 }
 
 // runtimeSeenAfter orders two rows of the same daemon by last_seen_at. A row
@@ -289,11 +299,19 @@ func validateLocalDirectoryRef(ref json.RawMessage) (json.RawMessage, error) {
 	}
 	payload.Label = strings.TrimSpace(payload.Label)
 	payload.ExecutionMode = strings.TrimSpace(payload.ExecutionMode)
+	payload.InitScript = strings.TrimSpace(payload.InitScript)
+	if payload.ExecutionMode == localDirectoryModeScript {
+		if payload.InitScript == "" || !strings.HasSuffix(payload.InitScript, ".sh") {
+			return nil, errors.New("local_directory: script mode requires an init_script path ending in .sh")
+		}
+	} else {
+		payload.InitScript = ""
+	}
 	switch payload.ExecutionMode {
-	case "", localDirectoryModeInPlace, localDirectoryModeWorktree:
+	case "", localDirectoryModeInPlace, localDirectoryModeWorktree, localDirectoryModeScript:
 	default:
-		return nil, fmt.Errorf("local_directory: execution_mode must be %q or %q, got %q",
-			localDirectoryModeInPlace, localDirectoryModeWorktree, payload.ExecutionMode)
+		return nil, fmt.Errorf("local_directory: execution_mode must be %q, %q or %q, got %q",
+			localDirectoryModeInPlace, localDirectoryModeWorktree, localDirectoryModeScript, payload.ExecutionMode)
 	}
 	out, err := json.Marshal(payload)
 	if err != nil {
@@ -577,7 +595,7 @@ func (h *Handler) CreateProjectResource(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if !h.requireWorktreeCapableDaemon(w, r, project.WorkspaceID, req.ResourceType, normalizedRef) {
+	if !h.requireLocalIsolationCapableDaemon(w, r, project.WorkspaceID, req.ResourceType, normalizedRef) {
 		return
 	}
 
@@ -697,7 +715,7 @@ func (h *Handler) UpdateProjectResource(w http.ResponseWriter, r *http.Request) 
 	// after the mode was legitimately saved. The row already says worktree; the
 	// claim gate is what stops it from running somewhere that cannot.
 	if refProvided && !refRenameOnly {
-		if !h.requireWorktreeCapableDaemon(w, r, project.WorkspaceID, existing.ResourceType, nextRef) {
+		if !h.requireLocalIsolationCapableDaemon(w, r, project.WorkspaceID, existing.ResourceType, nextRef) {
 			return
 		}
 	}

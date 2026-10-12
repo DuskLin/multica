@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { GitBranch, Pencil, TriangleAlert } from "lucide-react";
+import { GitBranch, Pencil, Terminal, TriangleAlert } from "lucide-react";
 import type { LocalDirectoryExecutionMode } from "@multica/core/types";
+import { Input } from "@multica/ui/components/ui/input";
 import { Button } from "@multica/ui/components/ui/button";
 import {
   Dialog,
@@ -40,6 +41,8 @@ interface LocalDirectoryModeDialogProps {
   path: string;
   /** Mode to preselect — the current mode when editing, in_place when adding. */
   value: LocalDirectoryExecutionMode;
+  initScript?: string;
+  scriptSupported?: boolean;
   /** Set when worktree cannot be chosen; the option renders disabled with a reason. */
   unavailableReason?: WorktreeUnavailableReason;
   /** Server-side rejection to show inline (e.g. a 422 that only the API can detect). */
@@ -47,7 +50,7 @@ interface LocalDirectoryModeDialogProps {
   saving?: boolean;
   /** Confirm label differs between adding a resource and editing one. */
   confirmLabel: string;
-  onConfirm: (mode: LocalDirectoryExecutionMode) => void;
+  onConfirm: (mode: LocalDirectoryExecutionMode, initScript?: string) => void;
 }
 
 /**
@@ -64,6 +67,8 @@ export function LocalDirectoryModeDialog({
   onOpenChange,
   path,
   value,
+  initScript = "",
+  scriptSupported = false,
   unavailableReason,
   errorMessage,
   saving = false,
@@ -73,15 +78,17 @@ export function LocalDirectoryModeDialog({
   const { t } = useT("projects");
   const [selected, setSelected] = useState<LocalDirectoryExecutionMode>(value);
 
+  const [script, setScript] = useState(initScript);
+
   // Re-sync when the dialog is reopened for a different resource, otherwise the
   // previous row's mode would be preselected for this one.
   useEffect(() => {
-    if (open) setSelected(value);
-  }, [open, value]);
+    if (open) { setSelected(value); setScript(initScript); }
+  }, [open, value, initScript]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[85dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{t(($) => $.resources.mode_dialog_title)}</DialogTitle>
           <DialogDescription>
@@ -95,6 +102,9 @@ export function LocalDirectoryModeDialog({
 
         <LocalDirectoryModeOptions
           value={selected}
+          initScript={script}
+          onScriptChange={setScript}
+          scriptSupported={scriptSupported}
           onChange={setSelected}
           unavailableReason={unavailableReason}
         />
@@ -114,7 +124,7 @@ export function LocalDirectoryModeDialog({
           >
             {t(($) => $.resources.mode_cancel)}
           </Button>
-          <Button onClick={() => onConfirm(selected)} disabled={saving}>
+          <Button onClick={() => selected === "script" ? onConfirm(selected, script.trim()) : onConfirm(selected)} disabled={saving || (selected === "script" && (!scriptSupported || !script.trim().endsWith(".sh")))}>
             {confirmLabel}
           </Button>
         </DialogFooter>
@@ -125,12 +135,15 @@ export function LocalDirectoryModeDialog({
 
 interface LocalDirectoryModeOptionsProps {
   value: LocalDirectoryExecutionMode;
+  initScript?: string;
+  scriptSupported?: boolean;
   onChange: (mode: LocalDirectoryExecutionMode) => void;
+  onScriptChange?: (script: string) => void;
   unavailableReason?: WorktreeUnavailableReason;
 }
 
 /**
- * The two-option choice itself, without any surrounding chrome.
+ * Execution choices shared by project creation and resource settings.
  *
  * Shared so the dialog (editing an existing resource) and the compact picker in
  * the create-project modal offer literally the same options, copy and blocked
@@ -139,6 +152,9 @@ interface LocalDirectoryModeOptionsProps {
 export function LocalDirectoryModeOptions({
   value,
   onChange,
+  initScript = "",
+  onScriptChange,
+  scriptSupported = false,
   unavailableReason,
 }: LocalDirectoryModeOptionsProps) {
   const { t } = useT("projects");
@@ -170,6 +186,28 @@ export function LocalDirectoryModeOptions({
         }
         onSelect={() => onChange("worktree")}
       />
+      <ModeOption
+        icon={<Terminal className="size-4" />}
+        title={t(($) => $.resources.mode_script_title)}
+        description={t(($) => $.resources.mode_script_description)}
+        identifier="script"
+        selected={value === "script"}
+        disabled={!scriptSupported}
+        disabledReason={t(($) => $.resources.mode_script_needs_server_upgrade)}
+        onSelect={() => onChange("script")}
+      />
+      {value === "script" && (
+        <label className="flex flex-col gap-2 text-caption">
+          {t(($) => $.resources.init_script_label)}
+          <Input
+            value={initScript}
+            onChange={(event) => onScriptChange?.(event.target.value)}
+            // eslint-disable-next-line no-restricted-syntax -- Literal script filename example.
+            placeholder="init-workspace.sh"
+          />
+          <span className="text-muted-foreground">{t(($) => $.resources.init_script_help)}</span>
+        </label>
+      )}
     </div>
   );
 }

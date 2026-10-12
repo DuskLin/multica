@@ -88,6 +88,8 @@ type PrepareParams struct {
 	// Mutually exclusive with LocalWorkDir — the daemon picks one based on the
 	// resource's execution_mode.
 	LocalWorktree *LocalWorktreeParams
+	// LocalScript creates a durable directory with a user-selected Bash script.
+	LocalScript *LocalScriptParams
 	// HermesSourceHome is the shared Hermes home the per-task overlay is seeded
 	// from — resolved by the daemon via execenv.ResolveHermesProfile so it honors
 	// the agent's custom_env HERMES_HOME and any -p/--profile or sticky selection.
@@ -482,6 +484,16 @@ func Prepare(params PrepareParams, logger *slog.Logger) (*Environment, error) {
 			if err := resetEnvRootContents(envRoot); err != nil {
 				return nil, fmt.Errorf("execenv: reset existing env: %w", err)
 			}
+		}
+	}
+
+	if params.LocalScript != nil {
+		if params.LocalWorkDir != "" || params.LocalWorktree != nil {
+			return nil, errors.New("execenv: script isolation cannot be combined with another local mode")
+		}
+		params.LocalWorkDir, err = prepareLocalScript(*params.LocalScript, envRoot)
+		if err != nil {
+			return nil, err
 		}
 	}
 

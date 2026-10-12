@@ -924,7 +924,7 @@ func TestDaemonAdvertisesWorktreeUsesNewestRow(t *testing.T) {
 			runtimeRow(daemon, older, "local-worktree-v1"), // left behind by the old capable build
 			runtimeRow(daemon, newer),                      // what the machine runs now
 		}
-		if daemonAdvertisesWorktree(rows, daemon) {
+		if daemonAdvertisesCapability(rows, daemon, protocol.DaemonCapabilityLocalWorktreeV1) {
 			t.Error("a stale capable row was allowed to vouch for a downgraded daemon")
 		}
 	})
@@ -934,7 +934,7 @@ func TestDaemonAdvertisesWorktreeUsesNewestRow(t *testing.T) {
 			runtimeRow(daemon, older),
 			runtimeRow(daemon, newer, "local-worktree-v1"), // the upgrade
 		}
-		if !daemonAdvertisesWorktree(rows, daemon) {
+		if !daemonAdvertisesCapability(rows, daemon, protocol.DaemonCapabilityLocalWorktreeV1) {
 			t.Error("an upgraded daemon was not recognised")
 		}
 	})
@@ -944,7 +944,7 @@ func TestDaemonAdvertisesWorktreeUsesNewestRow(t *testing.T) {
 			runtimeRow(daemon, newer),
 			runtimeRow(daemon, older, "local-worktree-v1"),
 		}
-		if daemonAdvertisesWorktree(rows, daemon) {
+		if daemonAdvertisesCapability(rows, daemon, protocol.DaemonCapabilityLocalWorktreeV1) {
 			t.Error("result depended on slice order")
 		}
 	})
@@ -955,20 +955,20 @@ func TestDaemonAdvertisesWorktreeUsesNewestRow(t *testing.T) {
 			runtimeRow(daemon, never, "local-worktree-v1"),
 			runtimeRow(daemon, newer),
 		}
-		if daemonAdvertisesWorktree(rows, daemon) {
+		if daemonAdvertisesCapability(rows, daemon, protocol.DaemonCapabilityLocalWorktreeV1) {
 			t.Error("a never-seen row outvoted a live one")
 		}
 	})
 
 	t.Run("ignores other daemons and empty ids", func(t *testing.T) {
 		rows := []db.AgentRuntime{runtimeRow("daemon-b", newer, "local-worktree-v1")}
-		if daemonAdvertisesWorktree(rows, daemon) {
+		if daemonAdvertisesCapability(rows, daemon, protocol.DaemonCapabilityLocalWorktreeV1) {
 			t.Error("another machine's row vouched for this daemon")
 		}
-		if daemonAdvertisesWorktree(rows, "") {
+		if daemonAdvertisesCapability(rows, "", protocol.DaemonCapabilityLocalWorktreeV1) {
 			t.Error("empty daemon id matched a row")
 		}
-		if daemonAdvertisesWorktree(nil, daemon) {
+		if daemonAdvertisesCapability(nil, daemon, protocol.DaemonCapabilityLocalWorktreeV1) {
 			t.Error("no rows at all reported capable")
 		}
 	})

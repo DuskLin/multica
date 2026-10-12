@@ -87,16 +87,21 @@ export interface GithubRepoResourceRef {
  *   the repo, not by the branch name, so a same-named branch the user made is
  *   never adopted.
  *
+ * - `script`: Bash initializes a separate directory for each run; no Git required.
+ *   Results remain in that directory until manually removed.
+ *
  * Absent means `in_place`: resources created before the mode existed keep their
  * original behavior, so this is optional rather than defaulted on the server.
  */
-export type LocalDirectoryExecutionMode = "in_place" | "worktree";
+export type LocalDirectoryExecutionMode = "in_place" | "worktree" | "script";
 
 export interface LocalDirectoryResourceRef {
   local_path: string;
   daemon_id: string;
   label?: string;
   execution_mode?: LocalDirectoryExecutionMode;
+  /** Bash script path, absolute or relative to local_path; receives destination as $1. */
+  init_script?: string;
 }
 
 export type ProjectResourceRef =

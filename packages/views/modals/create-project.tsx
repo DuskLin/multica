@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { CalendarClock, CalendarDays, ChevronRight, FolderOpen, GitBranch, Maximize2, Minimize2, MoreHorizontal, Pencil, Search, X as XIcon, UserMinus } from "lucide-react";
+import { CalendarClock, CalendarDays, ChevronRight, FolderOpen, GitBranch, Maximize2, Minimize2, MoreHorizontal, Pencil, Terminal, Search, X as XIcon, UserMinus } from "lucide-react";
 
 /**
  * GitHub mark — lucide-react v1 dropped brand icons, so we inline the
@@ -94,17 +94,20 @@ export function buildLocalDirectoryResourceRef({
   daemonId,
   label,
   mode,
+  initScript,
 }: {
   localPath: string;
   daemonId: string;
   label: string | null;
   mode: LocalDirectoryExecutionMode;
+  initScript?: string;
 }): Record<string, unknown> {
   return {
     local_path: localPath,
     daemon_id: daemonId,
     ...(label ? { label } : {}),
     execution_mode: mode,
+    ...(mode === "script" ? { init_script: initScript?.trim() } : {}),
   };
 }
 
@@ -218,6 +221,8 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
   // undefined = could not check (older desktop build); the daemon re-checks
   // authoritatively, so unknown stays permissive.
   const [localIsGitRepo, setLocalIsGitRepo] = useState<boolean | undefined>(undefined);
+  const [localInitScript, setLocalInitScript] = useState("");
+  const scriptSupported = useConfigStore((state) => state.localScriptSupported);
   const [localModeOpen, setLocalModeOpen] = useState(false);
 
   // Worktree mode needs a daemon new enough to implement it; the server refuses
@@ -265,7 +270,7 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
   // after a mode was chosen (pick a git repo, choose worktree, then pick a
   // plain folder), and the stale choice would fail at task time.
   const effectiveLocalMode: LocalDirectoryExecutionMode =
-    worktreeUnavailableReason !== undefined
+    localMode === "script" ? (scriptSupported ? "script" : "in_place") : worktreeUnavailableReason !== undefined
       ? "in_place"
       : (localMode ?? preselectedLocalMode);
 
@@ -309,6 +314,7 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
     setLocalPickError(null);
     setLocalIsGitRepo(undefined);
     setLocalMode(null);
+    setLocalInitScript("");
   };
 
   // Sync field changes to draft store
@@ -345,10 +351,12 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
     githubRefHasError(repoRefs[url] ?? ""),
   );
 
+  const invalidLocalScript = sourceMode === "local" && effectiveLocalMode === "script" && !localInitScript.trim().endsWith(".sh");
+
   const handleSubmit = async () => {
     // Checked here as well as on the button: TitleEditor's onSubmit calls this
     // directly, so a disabled button alone leaves the keyboard path open.
-    if (!title.trim() || submitting) return;
+    if (!title.trim() || submitting || invalidLocalScript) return;
     if (sourceMode === "repos" && hasRejectedRepoRef) return;
     // `sourceMode` decides which side's stash gets persisted — the other
     // side is silently dropped, so repos picked then abandoned for local
@@ -379,6 +387,7 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
             daemonId: daemonStatus.daemonId,
             label: selectedLocalLabel,
             mode: effectiveLocalMode,
+            initScript: localInitScript,
           }),
         },
       ];
@@ -1000,7 +1009,9 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
                                 // "Change directory…" beside it fits whole.
                                 className="h-6 shrink-0 text-caption"
                               >
-                                {effectiveLocalMode === "worktree" ? (
+                                {effectiveLocalMode === "script" ? (
+                                  <Terminal className="size-3 shrink-0" />
+                                ) : effectiveLocalMode === "worktree" ? (
                                   <GitBranch className="size-3 shrink-0" />
                                 ) : (
                                   <Pencil className="size-3 shrink-0" />
@@ -1010,7 +1021,7 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
                                     titles truncate to uselessness. The picker
                                     below carries the full wording. */}
                                 <span className="truncate">
-                                  {effectiveLocalMode === "worktree"
+                                  {effectiveLocalMode === "script" ? tProjects(($) => $.resources.mode_script_title) : effectiveLocalMode === "worktree"
                                     ? tProjects(($) => $.resources.mode_badge_worktree)
                                     : tProjects(($) => $.resources.mode_badge_in_place)}
                                 </span>
@@ -1020,9 +1031,12 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
                           <PopoverContent align="start" className="w-80 p-2">
                             <LocalDirectoryModeOptions
                               value={effectiveLocalMode}
+                              initScript={localInitScript}
+                              onScriptChange={setLocalInitScript}
+                              scriptSupported={scriptSupported}
                               onChange={(mode) => {
                                 setLocalMode(mode);
-                                setLocalModeOpen(false);
+                                if (mode !== "script") setLocalModeOpen(false);
                               }}
                               unavailableReason={worktreeUnavailableReason}
                             />
@@ -1109,6 +1123,7 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
             disabled={
               !title.trim() ||
               submitting ||
+              invalidLocalScript ||
               (sourceMode === "repos" && hasRejectedRepoRef)
             }
             className="shrink-0"

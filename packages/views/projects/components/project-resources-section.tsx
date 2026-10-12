@@ -7,6 +7,7 @@ import {
   FolderGit,
   FolderOpen,
   GitBranch,
+  Terminal,
   Plus,
   Search,
   Trash2,
@@ -88,7 +89,7 @@ function isLocalDirectoryRef(r: ProjectResource): r is ProjectResource & {
 function executionModeOf(
   ref: LocalDirectoryResourceRef,
 ): LocalDirectoryExecutionMode {
-  return ref.execution_mode === "worktree" ? "worktree" : "in_place";
+  return ref.execution_mode === "script" ? "script" : ref.execution_mode === "worktree" ? "worktree" : "in_place";
 }
 
 /** Pending mode edit — either for a directory being added, or an existing row. */
@@ -147,6 +148,7 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
   // The one thing the client must still check up front: whether this server
   // performs that gate at all. One declared boolean, no inference — servers
   // that predate it drop execution_mode and answer 201.
+  const scriptSupported = useConfigStore((state) => state.localScriptSupported);
   const serverValidatesWorktree = useConfigStore((state) => state.localWorktreeSupported);
   // Keyed on the resource's OWN daemon, not the machine the browser happens to
   // be on: a resource is pinned to one machine, and its mode can legitimately
@@ -274,14 +276,14 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
     }
   };
 
-  const handleConfirmMode = async (mode: LocalDirectoryExecutionMode) => {
+  const handleConfirmMode = async (mode: LocalDirectoryExecutionMode, initScript?: string) => {
     if (!modeDialog || modeSaving) return;
     setModeSaving(true);
     setModeError(null);
     try {
       if (modeDialog.resource) {
         const ref = modeDialog.resource.resource_ref;
-        if (executionModeOf(ref) === mode) {
+        if (executionModeOf(ref) === mode && (mode !== "script" || ref.init_script === initScript)) {
           setModeDialog(null);
           return;
         }
@@ -290,7 +292,7 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
           data: {
             // Spread first so every other ref field survives the edit — the
             // server replaces the whole ref, it does not deep-merge.
-            resource_ref: { ...ref, execution_mode: mode },
+            resource_ref: { ...ref, execution_mode: mode, init_script: mode === "script" ? initScript : undefined },
           },
         });
         toast.success(t(($) => $.resources.toast_local_mode_updated));
@@ -303,6 +305,7 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
             daemon_id: localDaemonId,
             label: modeDialog.label ?? modeDialog.path,
             execution_mode: mode,
+            ...(mode === "script" ? { init_script: initScript } : {}),
           },
         });
         toast.success(t(($) => $.resources.toast_local_attached));
@@ -586,6 +589,8 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
           }}
           path={modeDialog.path}
           value={modeDialog.mode}
+          scriptSupported={scriptSupported}
+          initScript={modeDialog.resource?.resource_ref.init_script ?? ""}
           unavailableReason={worktreeUnavailableReason(
             modeDialog.isGitRepo,
             serverValidatesWorktree,
@@ -597,7 +602,7 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
               ? t(($) => $.resources.mode_save)
               : t(($) => $.resources.mode_add)
           }
-          onConfirm={(mode) => void handleConfirmMode(mode)}
+          onConfirm={(mode, script) => void handleConfirmMode(mode, script)}
         />
       )}
     </div>
@@ -818,18 +823,18 @@ function LocalDirectoryRow({
           way to tell whether tasks on this folder edit it directly or hand back
           a branch, which is the first thing someone asks when a task queues (or
           does not). */}
-      {mode === "worktree" && (
+      {(mode === "worktree" || mode === "script") && (
         <Tooltip>
           <TooltipTrigger
             render={
               <Badge variant="secondary" className="shrink-0 gap-1 font-normal">
-                <GitBranch className="size-3" />
-                {t(($) => $.resources.mode_badge_worktree)}
+                {mode === "script" ? <Terminal className="size-3" /> : <GitBranch className="size-3" />}
+                {mode === "script" ? t(($) => $.resources.mode_script_title) : t(($) => $.resources.mode_badge_worktree)}
               </Badge>
             }
           />
           <TooltipContent side="top">
-            {t(($) => $.resources.mode_badge_worktree_tooltip)}
+            {mode === "script" ? t(($) => $.resources.mode_script_description) : t(($) => $.resources.mode_badge_worktree_tooltip)}
           </TooltipContent>
         </Tooltip>
       )}

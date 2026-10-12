@@ -3583,11 +3583,11 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	// user asked to isolate. That is the exact outcome worktree mode exists to
 	// prevent, so it fails closed here, against the version of the runtime that
 	// is actually claiming.
-	if reason := worktreeClaimBlockReason(
-		resp.ProjectResources,
-		runtime,
-		requestHasClientCapability(r, protocol.DaemonCapabilityLocalWorktreeV1),
-	); reason != "" {
+	reason := worktreeClaimBlockReason(resp.ProjectResources, runtime, requestHasClientCapability(r, protocol.DaemonCapabilityLocalWorktreeV1))
+	if reason == "" {
+		reason = scriptClaimBlockReason(resp.ProjectResources, runtime, requestHasClientCapability(r, protocol.DaemonCapabilityLocalScriptV1))
+	}
+	if reason != "" {
 		slog.Error("task claim: runtime too old for worktree mode; cancelling rather than running in place",
 			"task_id", uuidToString(task.ID),
 			"runtime_id", runtimeID,
@@ -3699,6 +3699,33 @@ func worktreeClaimBlockReason(resources []ProjectResourceData, runtime db.AgentR
 		}
 		return fmt.Sprintf(
 			"This machine's Multica runtime does not support parallel (worktree) mode, which %q is set to use. "+
+				"Update the Multica app on that machine to the latest version, then re-run this task. "+
+				"Refusing to run rather than falling back to editing the directory directly, which is what this mode exists to prevent.",
+			ref.LocalPath)
+	}
+	return ""
+}
+
+func scriptClaimBlockReason(resources []ProjectResourceData, runtime db.AgentRuntime, hasScriptCapability bool) string {
+	if !runtime.DaemonID.Valid || runtime.DaemonID.String == "" {
+		return ""
+	}
+	if hasScriptCapability {
+		return ""
+	}
+	for _, res := range resources {
+		if res.ResourceType != "local_directory" {
+			continue
+		}
+		var ref localDirectoryRef
+		if err := json.Unmarshal(res.ResourceRef, &ref); err != nil {
+			continue
+		}
+		if ref.ExecutionMode != localDirectoryModeScript || ref.DaemonID != runtime.DaemonID.String {
+			continue
+		}
+		return fmt.Sprintf(
+			"This machine's Multica runtime does not support parallel (script) mode, which %q is set to use. "+
 				"Update the Multica app on that machine to the latest version, then re-run this task. "+
 				"Refusing to run rather than falling back to editing the directory directly, which is what this mode exists to prevent.",
 			ref.LocalPath)

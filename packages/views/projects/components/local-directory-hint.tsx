@@ -64,6 +64,7 @@ export function LocalDirectoryHint({
         // absent on resources created before it existed, and an unknown value
         // from a newer server must not claim isolation we cannot verify.
         const isWorktree = ref.execution_mode === "worktree";
+        const isScript = ref.execution_mode === "script";
         return (
           <div key={resource.id} className="space-y-0.5">
             <div className="flex items-center gap-2">
@@ -73,7 +74,7 @@ export function LocalDirectoryHint({
                 <FolderOpen className="size-3 shrink-0" />
               )}
               <span className="truncate">
-                {isWorktree
+                {isScript ? t(($) => $.resources.chat_hint_script_prefix) : isWorktree
                   ? t(($) => $.resources.chat_hint_worktree_prefix)
                   : t(($) => $.resources.chat_hint_prefix)}
                 <span className="font-medium text-foreground"> {label} </span>
@@ -82,9 +83,9 @@ export function LocalDirectoryHint({
             </div>
             {/* Where the work ends up. Only worktree mode needs saying: in
                 place, the answer is the directory already named above. */}
-            {isWorktree && (
+            {(isWorktree || isScript) && (
               <div className="pl-5 opacity-80">
-                {t(($) => $.resources.chat_hint_worktree_note)}
+                {isScript ? t(($) => $.resources.mode_script_description) : t(($) => $.resources.chat_hint_worktree_note)}
               </div>
             )}
           </div>

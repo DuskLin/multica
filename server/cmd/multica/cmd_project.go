@@ -154,7 +154,8 @@ func init() {
 	projectResourceAddCmd.Flags().String("local-path", "", "Shortcut: absolute path to the working directory (only used when --type local_directory)")
 	projectResourceAddCmd.Flags().String("daemon-id", "", "Shortcut: id of the daemon that owns the local path (only used when --type local_directory)")
 	projectResourceAddCmd.Flags().String("ref-label", "", "Shortcut: optional label embedded in resource_ref (only used when --type local_directory)")
-	projectResourceAddCmd.Flags().String("execution-mode", "", "Shortcut: how runs share the directory — in_place (default, one run at a time) or worktree (each run gets its own git worktree; requires a git repo) (only used when --type local_directory)")
+	projectResourceAddCmd.Flags().String("init-script", "", "Bash initializer path; receives the isolated directory as its first argument (script mode)")
+	projectResourceAddCmd.Flags().String("execution-mode", "", "Shortcut: how runs share the directory — in_place, worktree (Git), or script (Bash initializer) (only used when --type local_directory)")
 	projectResourceAddCmd.Flags().String("ref", "", "Generic JSON resource_ref payload, or a github_repo checkout ref when used with --url")
 	projectResourceAddCmd.Flags().String("label", "", "Optional human-readable label")
 	projectResourceAddCmd.Flags().String("output", "json", "Output format: table or json")
@@ -166,7 +167,8 @@ func init() {
 	projectResourceUpdateCmd.Flags().String("local-path", "", "Shortcut: new absolute local path (local_directory)")
 	projectResourceUpdateCmd.Flags().String("daemon-id", "", "Shortcut: new daemon id (local_directory)")
 	projectResourceUpdateCmd.Flags().String("ref-label", "", "Shortcut: new label embedded in resource_ref (local_directory)")
-	projectResourceUpdateCmd.Flags().String("execution-mode", "", "Shortcut: new execution mode — in_place or worktree (local_directory)")
+	projectResourceUpdateCmd.Flags().String("init-script", "", "New Bash initializer path (script mode)")
+	projectResourceUpdateCmd.Flags().String("execution-mode", "", "Shortcut: new execution mode — in_place, worktree, or script (local_directory)")
 	projectResourceUpdateCmd.Flags().String("ref", "", "Generic JSON resource_ref payload, or a github_repo checkout ref")
 	projectResourceUpdateCmd.Flags().String("label", "", "New human-readable label; pass an empty string to clear")
 	projectResourceUpdateCmd.Flags().Bool("clear-label", false, "Clear the human-readable label")
@@ -609,6 +611,9 @@ func runProjectResourceAdd(cmd *cobra.Command, args []string) error {
 			if refLabel, _ := cmd.Flags().GetString("ref-label"); strings.TrimSpace(refLabel) != "" {
 				ref["label"] = strings.TrimSpace(refLabel)
 			}
+			if script, _ := cmd.Flags().GetString("init-script"); strings.TrimSpace(script) != "" {
+				ref["init_script"] = strings.TrimSpace(script)
+			}
 			if mode, _ := cmd.Flags().GetString("execution-mode"); strings.TrimSpace(mode) != "" {
 				ref["execution_mode"] = strings.TrimSpace(mode)
 			}
@@ -633,6 +638,10 @@ func runProjectResourceAdd(cmd *cobra.Command, args []string) error {
 	projectRef, err := resolveProjectID(ctx, client, args[0])
 	if err != nil {
 		return fmt.Errorf("resolve project: %w", err)
+	}
+
+	if err := requireScriptIsolationSupport(ctx, client, resourceType, body["resource_ref"]); err != nil {
+		return err
 	}
 
 	var result map[string]any
@@ -730,6 +739,10 @@ func runProjectResourceUpdate(cmd *cobra.Command, args []string) error {
 
 	if len(body) == 0 {
 		return fmt.Errorf("nothing to update — pass --ref / --url / --local-path / --label / --position / --clear-label")
+	}
+
+	if err := requireScriptIsolationSupport(ctx, client, resourceType, body["resource_ref"]); err != nil {
+		return err
 	}
 
 	var result map[string]any
@@ -851,7 +864,8 @@ func buildResourceRefFromFlags(cmd *cobra.Command, resourceType string, existing
 		daemonSet := cmd.Flags().Changed("daemon-id")
 		labelSet := cmd.Flags().Changed("ref-label")
 		modeSet := cmd.Flags().Changed("execution-mode")
-		if !pathSet && !daemonSet && !labelSet && !modeSet {
+		scriptSet := cmd.Flags().Changed("init-script")
+		if !pathSet && !daemonSet && !labelSet && !modeSet && !scriptSet {
 			return nil, false, nil
 		}
 		ref := map[string]any{}
@@ -864,6 +878,9 @@ func buildResourceRefFromFlags(cmd *cobra.Command, resourceType string, existing
 			}
 			if l, ok := existingRef["label"].(string); ok && strings.TrimSpace(l) != "" {
 				ref["label"] = strings.TrimSpace(l)
+			}
+			if script, ok := existingRef["init_script"].(string); ok && strings.TrimSpace(script) != "" {
+				ref["init_script"] = strings.TrimSpace(script)
 			}
 			if m, ok := existingRef["execution_mode"].(string); ok && strings.TrimSpace(m) != "" {
 				ref["execution_mode"] = strings.TrimSpace(m)
@@ -901,6 +918,9 @@ func buildResourceRefFromFlags(cmd *cobra.Command, resourceType string, existing
 				ref["execution_mode"] = mode
 			}
 		}
+		if scriptSet {
+			ref["init_script"] = strings.TrimSpace(mustString(cmd, "init-script"))
+		}
 		if v, ok := ref["local_path"].(string); !ok || v == "" {
 			return nil, false, fmt.Errorf("local_directory: --local-path is required (no existing local_path to merge with)")
 		}
@@ -912,7 +932,7 @@ func buildResourceRefFromFlags(cmd *cobra.Command, resourceType string, existing
 		// Unknown type or empty (resource not found) — caller must use --ref.
 		if cmd.Flags().Changed("url") || cmd.Flags().Changed("default-branch-hint") ||
 			cmd.Flags().Changed("local-path") || cmd.Flags().Changed("daemon-id") ||
-			cmd.Flags().Changed("ref-label") || cmd.Flags().Changed("execution-mode") {
+			cmd.Flags().Changed("ref-label") || cmd.Flags().Changed("execution-mode") || cmd.Flags().Changed("init-script") {
 			return nil, false, fmt.Errorf("no built-in shortcut for resource type %q; pass the full payload via --ref '<json>'", resourceType)
 		}
 		return nil, false, nil
@@ -984,4 +1004,24 @@ func formatLead(project map[string]any, actors actorDisplayLookup) string {
 		return ""
 	}
 	return actors.actor(lType, lID)
+}
+
+// Older servers can silently drop unknown execution fields. Check the explicit
+// persistence capability before sending a script resource from the CLI.
+func requireScriptIsolationSupport(ctx context.Context, client *cli.APIClient, resourceType string, rawRef any) error {
+	ref, ok := rawRef.(map[string]any)
+	mode, _ := ref["execution_mode"].(string)
+	if !ok || resourceType != "local_directory" || strings.TrimSpace(mode) != "script" {
+		return nil
+	}
+	var config struct {
+		LocalScriptSupported bool `json:"local_script_supported"`
+	}
+	if err := client.GetJSON(ctx, "/api/config", &config); err != nil {
+		return fmt.Errorf("check script isolation support: %w", err)
+	}
+	if !config.LocalScriptSupported {
+		return fmt.Errorf("this server does not support script isolation; update the Multica server before saving this resource")
+	}
+	return nil
 }

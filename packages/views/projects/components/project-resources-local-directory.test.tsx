@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithI18n } from "../../test/i18n";
 import en from "../../locales/en/projects.json";
+
+const updateResourceMock = vi.fn().mockResolvedValue({});
 
 const RESOURCE = {
   id: "res-1",
@@ -15,6 +17,7 @@ const RESOURCE = {
     daemon_id: "daemon-1",
     label: "game-client",
     execution_mode: "worktree",
+    init_script: "",
   },
   // Written by a label update (`multica project resource update --label`):
   // the column the row must read before the copy left inside the ref.
@@ -36,13 +39,13 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@multica/core/projects", () => ({
   projectResourcesOptions: () => ({ queryKey: ["project-resources"], queryFn: vi.fn() }),
   useCreateProjectResource: () => ({ mutateAsync: vi.fn() }),
-  useUpdateProjectResource: () => ({ mutateAsync: vi.fn() }),
+  useUpdateProjectResource: () => ({ mutateAsync: updateResourceMock }),
   useDeleteProjectResource: () => ({ mutateAsync: vi.fn() }),
 }));
 
 vi.mock("@multica/core/config", () => ({
-  useConfigStore: (selector: (state: { localWorktreeSupported: boolean }) => unknown) =>
-    selector({ localWorktreeSupported: true }),
+  useConfigStore: (selector: (state: { localWorktreeSupported: boolean; localScriptSupported: boolean }) => unknown) =>
+    selector({ localWorktreeSupported: true, localScriptSupported: true }),
 }));
 
 vi.mock("@multica/core/runtimes", () => ({
@@ -88,4 +91,24 @@ describe("ProjectResourcesSection — local directory row", () => {
     expect(screen.queryByTitle(/rename/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
+});
+
+it("saves a changed initializer even when the resource stays in script mode", async () => {
+  RESOURCE.resource_ref.execution_mode = "script";
+  RESOURCE.resource_ref.init_script = "init.sh";
+  try {
+    renderWithI18n(<ProjectResourcesSection projectId="p1" />);
+    fireEvent.click(screen.getByTitle(strings.mode_edit_tooltip));
+    const input = screen.getByRole("textbox", { name: /Initialization script/ });
+    expect(input).toHaveValue("init.sh");
+    fireEvent.change(input, { target: { value: "scripts/new.sh" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(updateResourceMock).toHaveBeenCalledWith({
+      resourceId: "res-1",
+      data: { resource_ref: { ...RESOURCE.resource_ref, init_script: "scripts/new.sh" } },
+    }));
+  } finally {
+    RESOURCE.resource_ref.execution_mode = "worktree";
+    RESOURCE.resource_ref.init_script = "";
+  }
 });

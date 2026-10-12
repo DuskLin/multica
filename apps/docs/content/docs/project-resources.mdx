@@ -93,8 +93,43 @@ Because the worktree lives in the runtime's workspace directory, it is reclaimed
 </Callout>
 
 <Callout type="info">
-Worktree mode covers git repositories. A plain non-git directory still runs serially — that is what `in_place` is for.
+Worktree mode covers git repositories. A non-Git directory can also run in parallel using script mode below.
 </Callout>
+
+### Parallel scripts (`script`)
+
+Choose **Parallel · script** when creating a project or editing a local directory's execution mode. Set a `.sh` initializer path, absolute or relative to the linked project directory. Git is not required. The runtime machine needs Bash, and both the server and runtime must support script isolation.
+
+Each run creates an empty `<project>/.worktrees/multica-<date>-<random>` directory, then runs the initializer from the project directory:
+
+```bash
+bash -- /path/to/init-workspace.sh "$WORKTREE_DIR"
+```
+
+The destination is the first argument (`$1`), preserving spaces in paths. Write into that directory without replacing it or turning it into a symlink. When copying the source, exclude `.worktrees` to prevent recursive copies:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+SOURCE_DIR="$(pwd)"
+WORKTREE_DIR="${1:?Missing destination}"
+rsync -a --exclude='.worktrees' --exclude='node_modules' \
+  "$SOURCE_DIR/" "$WORKTREE_DIR/"
+# Initialize dependencies or multiple repositories inside WORKTREE_DIR here.
+```
+
+The agent starts in the destination only after the script exits successfully. Initializer output is saved to `logs/init-workspace.log` in the run environment. A failed initializer stops the run and reports the log and preserved directory paths. Initialization shares the existing five-minute preparation deadline; cancellation or timeout terminates the preparation process and its children.
+
+Every run, including follow-ups, initializes a fresh directory rather than continuing the previous directory's edits. Run details points to the resulting working directory. Results survive success, failure, and cancellation until you remove the directory manually. Multica does not commit, merge, or delete them. The script executes as the runtime user and is responsible for its copying, repository updates, and protection of the source directory.
+
+```bash
+multica project resource add <project-id> \
+  --type local_directory --local-path /path/to/project \
+  --daemon-id <daemon-id> --execution-mode script \
+  --init-script init-workspace.sh
+multica project resource update <project-id> <resource-id> \
+  --execution-mode script --init-script scripts/init-workspace.sh
+```
 
 ## What gets written during a run
 

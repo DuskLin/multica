@@ -26,6 +26,7 @@ const localDirectoryResourceType = "local_directory"
 const (
 	localDirectoryModeInPlace  = "in_place"
 	localDirectoryModeWorktree = "worktree"
+	localDirectoryModeScript   = "script"
 )
 
 // localDirectoryRef mirrors the server-side ref shape for local_directory
@@ -36,6 +37,7 @@ type localDirectoryRef struct {
 	DaemonID      string `json:"daemon_id"`
 	Label         string `json:"label,omitempty"`
 	ExecutionMode string `json:"execution_mode,omitempty"`
+	InitScript    string `json:"init_script,omitempty"`
 }
 
 // localDirectoryAssignment is the resolved view of a task's local_directory
@@ -54,9 +56,17 @@ type localDirectoryAssignment struct {
 // worktree instead of in the user's directory. Worktree tasks skip the per-path
 // mutex entirely — that is the whole point of the mode — so every caller that
 // serialises, cleans up sidecars, or exempts the env root from GC must branch
-// on this rather than on "is there a local_directory assignment at all".
+// on IsIsolated rather than on "is there a local_directory assignment at all".
 func (a *localDirectoryAssignment) UsesWorktree() bool {
 	return a != nil && strings.TrimSpace(a.Ref.ExecutionMode) == localDirectoryModeWorktree
+}
+
+func (a *localDirectoryAssignment) UsesScript() bool {
+	return a != nil && strings.TrimSpace(a.Ref.ExecutionMode) == localDirectoryModeScript
+}
+
+func (a *localDirectoryAssignment) IsIsolated() bool {
+	return a.UsesWorktree() || a.UsesScript()
 }
 
 // DisplayName is the human-facing name for this directory, safe to render in
@@ -92,15 +102,18 @@ func (a *localDirectoryAssignment) ValidateExecutionMode() error {
 	if a == nil {
 		return nil
 	}
+	if a.UsesScript() && !strings.HasSuffix(strings.TrimSpace(a.Ref.InitScript), ".sh") {
+		return errors.New("local_directory: script mode requires an init_script path ending in .sh")
+	}
 	switch strings.TrimSpace(a.Ref.ExecutionMode) {
-	case "", localDirectoryModeInPlace, localDirectoryModeWorktree:
+	case "", localDirectoryModeInPlace, localDirectoryModeWorktree, localDirectoryModeScript:
 		return nil
 	default:
 		return fmt.Errorf(
 			"local_directory: this daemon does not support execution_mode %q for %q "+
-				"(update the daemon, or set the resource's execution mode to %q or %q); "+
+				"(update the daemon, or use a supported execution mode); "+
 				"refusing to run in place, since that would modify a directory the resource asked to isolate",
-			a.Ref.ExecutionMode, a.AbsPath, localDirectoryModeInPlace, localDirectoryModeWorktree)
+			a.Ref.ExecutionMode, a.AbsPath)
 	}
 }
 

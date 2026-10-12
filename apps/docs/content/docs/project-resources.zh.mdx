@@ -39,7 +39,7 @@ import { Callout } from "fumadocs-ui/components/callout";
 <Callout type="warning">
 **这是逃生舱，不是更方便的默认项。** `local_directory` 是给那些"不得不这么开发"的人准备的 —— 典型是一个 checkout 就几十 GB 的游戏项目，不可能每来一次运行就重新 clone 一份。
 
-如果你的目录只是一个能正常 clone 的普通 git 仓库，**请用 `github_repo`**：它默认走 worktree 模式，同一个仓库上的运行可以无限并发。`local_directory` **默认同一时间只进行一次运行**；如果这个目录本身是 git 仓库，可以主动开启 worktree 模式把并发拿回来（见“运行如何共享这个目录”）。先看上面的两种资源对照再决定。
+如果你的目录只是一个能正常 clone 的普通 git 仓库，**请用 `github_repo`**：它默认走 worktree 模式，同一个仓库上的运行可以无限并发。`local_directory` **默认同一时间只进行一次运行**；如果这个目录本身是 git 仓库，可以主动开启 worktree 模式把并发拿回来（见“运行如何共享这个目录”）。非 Git 目录也可通过脚本初始化独立目录实现并行。先看上面的两种资源对照再决定。
 </Callout>
 
 
@@ -94,8 +94,43 @@ import { Callout } from "fumadocs-ui/components/callout";
 </Callout>
 
 <Callout type="info">
-worktree 模式面向 git 仓库。普通的非 git 目录仍然串行执行 —— 这正是 `in_place` 的用途。
+worktree 模式面向 git 仓库。非 Git 目录也可以使用下面的脚本模式并行运行。
 </Callout>
+
+### 脚本并行（`script`）
+
+在创建项目或编辑本地目录的执行方式时，选择"并行 · 脚本"，填写初始化 `.sh` 脚本路径。路径可以是绝对路径，也可以相对于关联的项目目录。无需 Git 仓库；运行时所在机器需要 Bash，服务端与运行时都需要支持脚本模式。
+
+每次运行都会先创建一个空目录 `<项目目录>/.worktrees/multica-<日期>-<随机值>`，再从项目目录执行：
+
+```bash
+bash -- /path/to/init-workspace.sh "$WORKTREE_DIR"
+```
+
+目标目录作为第一个参数（`$1`）传入，路径中的空格会保留。脚本应只向目标目录写入文件，不要替换目标目录或把它改成符号链接。复制源目录时必须排除 `.worktrees`，避免递归复制。例如：
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+SOURCE_DIR="$(pwd)"
+WORKTREE_DIR="${1:?Missing destination}"
+rsync -a --exclude='.worktrees' --exclude='node_modules' \
+  "$SOURCE_DIR/" "$WORKTREE_DIR/"
+# Initialize dependencies or multiple repositories inside WORKTREE_DIR here.
+```
+
+脚本成功退出后，智能体才会在目标目录启动。初始化输出保存在运行环境的 `logs/init-workspace.log`；脚本失败时运行会停止，并报告日志和保留目录的位置。脚本计入现有的 5 分钟准备阶段时限，取消或超时会终止准备进程及其子进程。
+
+每次运行（包括后续运行）都会重新初始化独立目录，不会自动继承上次目录中的改动。运行详情中的工作目录指向本次成果目录；成功、失败或取消后都保留该目录，不会自动提交、合并或删除文件，请在检查成果后手动清理。脚本本身以运行时账号执行，其文件复制、仓库更新及源目录保护由脚本负责。
+
+```bash
+multica project resource add <project-id> \
+  --type local_directory --local-path /path/to/project \
+  --daemon-id <daemon-id> --execution-mode script \
+  --init-script init-workspace.sh
+multica project resource update <project-id> <resource-id> \
+  --execution-mode script --init-script scripts/init-workspace.sh
+```
 
 ## 执行期间写入的内容
 

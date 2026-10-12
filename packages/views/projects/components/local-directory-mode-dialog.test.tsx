@@ -16,6 +16,8 @@ function renderDialog(
     value?: LocalDirectoryExecutionMode;
     unavailableReason?: WorktreeUnavailableReason;
     errorMessage?: string;
+    scriptSupported?: boolean;
+    initScript?: string;
     onConfirm?: (mode: LocalDirectoryExecutionMode) => void;
   } = {},
 ) {
@@ -27,6 +29,8 @@ function renderDialog(
         onOpenChange={() => {}}
         path="/Users/dev/work/game-client"
         value={overrides.value ?? "in_place"}
+        scriptSupported={overrides.scriptSupported}
+        initScript={overrides.initScript}
         unavailableReason={overrides.unavailableReason}
         errorMessage={overrides.errorMessage}
         confirmLabel="Save"
@@ -118,4 +122,20 @@ describe("LocalDirectoryModeDialog", () => {
 
     expect(onConfirm).toHaveBeenCalledWith("worktree");
   });
+});
+
+it("allows script isolation for a non-git folder and requires a script path", () => {
+  const onConfirm = vi.fn();
+  renderDialog({ unavailableReason: "not_git", scriptSupported: true, onConfirm });
+  fireEvent.click(screen.getByRole("radio", { name: /Parallel · script/ }));
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  fireEvent.change(screen.getByRole("textbox", { name: /Initialization script/ }), { target: { value: "  init-workspace.sh  " } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(onConfirm).toHaveBeenCalledWith("script", "init-workspace.sh");
+});
+
+it("keeps an existing script editable and blocks old servers", () => {
+  renderDialog({ value: "script", initScript: "init.sh", scriptSupported: false });
+  expect(screen.getByRole("textbox", { name: /Initialization script/ })).toHaveValue("init.sh");
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 });

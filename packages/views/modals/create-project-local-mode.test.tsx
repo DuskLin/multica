@@ -91,8 +91,8 @@ vi.mock("@multica/core/projects", () => ({
 // release before the worktree save gate.
 let serverValidatesWorktree = true;
 vi.mock("@multica/core/config", () => ({
-  useConfigStore: (selector: (state: { localWorktreeSupported: boolean }) => unknown) =>
-    selector({ localWorktreeSupported: serverValidatesWorktree }),
+  useConfigStore: (selector: (state: { localWorktreeSupported: boolean; localScriptSupported: boolean }) => unknown) =>
+    selector({ localWorktreeSupported: serverValidatesWorktree, localScriptSupported: true }),
 }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "workspace-1" }));
@@ -109,8 +109,11 @@ vi.mock("@multica/core/workspace/hooks", () => ({
 }));
 vi.mock("../navigation", () => ({ useNavigation: () => ({ push: vi.fn() }) }));
 vi.mock("../editor", () => {
-  const ContentEditor = React.forwardRef<HTMLTextAreaElement, { placeholder?: string }>(
-    ({ placeholder }, ref) => <textarea ref={ref} placeholder={placeholder} />,
+  const ContentEditor = React.forwardRef<{ getMarkdown: () => string }, { placeholder?: string }>(
+    ({ placeholder }, ref) => {
+      React.useImperativeHandle(ref, () => ({ getMarkdown: () => "" }));
+      return <textarea placeholder={placeholder} />;
+    },
   );
   ContentEditor.displayName = "ContentEditor";
   return {
@@ -344,5 +347,23 @@ describe("buildLocalDirectoryResourceRef", () => {
         mode: "in_place",
       }),
     ).toEqual({ local_path: "/tmp/x", daemon_id: "d", execution_mode: "in_place" });
+  });
+});
+
+it("creates a project with script isolation from a non-git folder", async () => {
+  pickedIsGitRepo = false;
+  const user = userEvent.setup();
+  renderWithI18n(<CreateProjectModal onClose={vi.fn()} />);
+  await pickLocalDirectory(user);
+  await user.click(screen.getByRole("radio", { name: /Parallel · script/ }));
+  const submit = screen.getByRole("button", { name: /Create project/i });
+  expect(submit).toBeDisabled();
+  await user.type(screen.getByRole("textbox", { name: /Initialization script/ }), "init-workspace.sh");
+  expect(screen.getByRole("textbox", { name: /Initialization script/ })).toHaveValue("init-workspace.sh");
+  expect(submit).toBeEnabled();
+  await user.click(submit);
+  await waitFor(() => expect(createProjectMock).toHaveBeenCalled());
+  expect(createProjectMock.mock.lastCall?.[0].resources[0].resource_ref).toMatchObject({
+    execution_mode: "script", init_script: "init-workspace.sh", local_path: "/Users/dev/work/game-client",
   });
 });

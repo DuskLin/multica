@@ -63,6 +63,9 @@ func backendResumeContinuityNotice(task Task) string {
 func perTurnContextBlocks(task Task, opts promptOpts) string {
 	var b strings.Builder
 	b.WriteString(buildSharedLocalDirectoryBlock(opts.sharedLocalDirectory))
+	if opts.scriptWorkspace {
+		b.WriteString("## Script workspace\n\nWork in your current working directory, which the project's initialization script prepared for this run. The resource's local_path is the source directory, not your execution directory. This is a fresh workspace; do not assume earlier runs' edits are present. Results are preserved here, so include this directory in your result and do not delete it.\n\n")
+	}
 	b.WriteString(buildWorktreeReplayConflictBlock(opts.worktreeReplayConflicts))
 	if task.PriorSessionResumeUnavailable {
 		b.WriteString(sessionContinuityNoticeFor(task))
@@ -88,11 +91,18 @@ func buildJoinedWakeupsBlock(notes string) string {
 // common BuildPrompt(task, provider) call sites stay unchanged.
 type promptOpts struct {
 	sharedLocalDirectory    bool
+	scriptWorkspace         bool
 	worktreeReplayConflicts []string
 }
 
 // PromptOption tunes per-turn prompt copy with run-scoped context.
 type PromptOption func(*promptOpts)
+
+// WithScriptWorkspace distinguishes the run's initialized copy from the source
+// directory still named in the project's resource manifest.
+func WithScriptWorkspace() PromptOption {
+	return func(o *promptOpts) { o.scriptWorkspace = true }
+}
 
 // WithSharedLocalDirectory marks a turn that runs inside the user's own
 // directory WITHOUT holding its path mutex — today, a chat turn on an in_place

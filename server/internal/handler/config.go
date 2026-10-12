@@ -74,6 +74,7 @@ type AppConfig struct {
 	// nothing, so they are treated the same way — the client cannot distinguish
 	// them, and only one of the two guesses is safe.
 	LocalWorktreeSupported bool `json:"local_worktree_supported"`
+	LocalScriptSupported   bool `json:"local_script_supported"`
 
 	// AgentConversationStartersSupported tells independently deployed clients
 	// that agent create/update persists conversation_starters. Older handlers
@@ -111,6 +112,7 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 		// A property of this build, not of the deployment: if this code is
 		// running, the save gate is running with it.
 		LocalWorktreeSupported:             true,
+		LocalScriptSupported:               true,
 		AgentConversationStartersSupported: true,
 		IssueCreatePropertiesSupported:     true,
 		CommentDeleteKeepRepliesSupported:  true,

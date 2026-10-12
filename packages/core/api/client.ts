@@ -1,3 +1,4 @@
+import { ProjectResourceSchema, ListProjectResourcesResponseSchema, EMPTY_PROJECT_RESOURCE } from "./project-resource-schema";
 import type { ZodType } from "zod";
 import type { IssueWakeup, IssueWakeupInput, IssueWakeupSummaryRow, PausedWakeup, SystemWakeup, WakeupRun, WorkspaceSystemWakeup } from "../types/issue-wakeup";
 import type { WorkspaceWakeupPage, WorkspaceWakeupFilters } from "../types/issue-wakeup";
@@ -547,6 +548,12 @@ export class ApiError extends Error {
     this.status = status;
     this.statusText = statusText;
     this.body = body;
+  }
+}
+
+function assertScriptIsolationWriteSupported(ref: ProjectResource["resource_ref"] | undefined) {
+  if (ref && "execution_mode" in ref && ref.execution_mode === "script" && !configStore.getState().localScriptSupported) {
+    throw new Error("This server version does not support script isolation. Update the server before saving this resource.");
   }
 }
 
@@ -4018,6 +4025,9 @@ export class ApiClient {
   }
 
   async createProject(data: CreateProjectRequest): Promise<Project> {
+    for (const resource of data.resources ?? []) {
+      if (resource.resource_type === "local_directory") assertScriptIsolationWriteSupported(resource.resource_ref);
+    }
     return this.fetch("/api/projects", {
       method: "POST",
       body: JSON.stringify(data),
@@ -4039,17 +4049,20 @@ export class ApiClient {
   async listProjectResources(
     projectId: string,
   ): Promise<ListProjectResourcesResponse> {
-    return this.fetch(`/api/projects/${projectId}/resources`);
+    const raw = await this.fetch<unknown>(`/api/projects/${projectId}/resources`);
+    return parseWithFallback(raw, ListProjectResourcesResponseSchema, { resources: [], total: 0 }, { endpoint: "GET /api/projects/:id/resources" });
   }
 
   async createProjectResource(
     projectId: string,
     data: CreateProjectResourceRequest,
   ): Promise<ProjectResource> {
-    return this.fetch(`/api/projects/${projectId}/resources`, {
+    assertScriptIsolationWriteSupported(data.resource_ref);
+    const raw = await this.fetch<unknown>(`/api/projects/${projectId}/resources`, {
       method: "POST",
       body: JSON.stringify(data),
     });
+    return parseWithFallback(raw, ProjectResourceSchema, EMPTY_PROJECT_RESOURCE, { endpoint: "POST /api/projects/:id/resources" });
   }
 
   async updateProjectResource(
@@ -4057,10 +4070,12 @@ export class ApiClient {
     resourceId: string,
     data: UpdateProjectResourceRequest,
   ): Promise<ProjectResource> {
-    return this.fetch(`/api/projects/${projectId}/resources/${resourceId}`, {
+    assertScriptIsolationWriteSupported(data.resource_ref);
+    const raw = await this.fetch<unknown>(`/api/projects/${projectId}/resources/${resourceId}`, {
       method: "PUT",
       body: JSON.stringify(data),
     });
+    return parseWithFallback(raw, ProjectResourceSchema, EMPTY_PROJECT_RESOURCE, { endpoint: "PUT /api/projects/:id/resources/:resourceId" });
   }
 
   async deleteProjectResource(

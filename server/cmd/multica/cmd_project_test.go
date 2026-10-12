@@ -1,6 +1,10 @@
 package main
 
 import (
+	"context"
+	"github.com/multica-ai/multica/server/internal/cli"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -37,6 +41,7 @@ func newProjectResourceUpdateTestCmd() *cobra.Command {
 	c.Flags().String("daemon-id", "", "")
 	c.Flags().String("ref-label", "", "")
 	c.Flags().String("execution-mode", "", "")
+	c.Flags().String("init-script", "", "")
 	c.Flags().String("ref", "", "")
 	c.Flags().String("label", "", "")
 	c.Flags().Bool("clear-label", false, "")
@@ -384,4 +389,39 @@ func TestBuildResourceRefFromFlagsLocalDirectoryExecutionMode(t *testing.T) {
 			t.Errorf("expected execution_mode cleared, got %v", ref["execution_mode"])
 		}
 	})
+}
+
+func TestBuildResourceRefFromFlagsScript(t *testing.T) {
+	existing := map[string]any{"local_path": "/source", "daemon_id": "d1", "execution_mode": "script", "init_script": "init.sh"}
+	cmd := newProjectResourceUpdateTestCmd()
+	_ = cmd.Flags().Set("ref-label", "renamed")
+	ref, _, err := buildResourceRefFromFlags(cmd, "local_directory", existing)
+	if err != nil || ref["init_script"] != "init.sh" {
+		t.Fatalf("rename lost script: %v, %v", ref, err)
+	}
+	cmd = newProjectResourceUpdateTestCmd()
+	_ = cmd.Flags().Set("init-script", "scripts/new.sh")
+	ref, has, err := buildResourceRefFromFlags(cmd, "local_directory", existing)
+	if err != nil || !has || ref["init_script"] != "scripts/new.sh" || ref["execution_mode"] != "script" {
+		t.Fatalf("script edit: %v, %v", ref, err)
+	}
+}
+
+func TestScriptIsolationRequiresServerSupport(t *testing.T) {
+	for _, payload := range []string{`{}`, `{"local_script_supported":false}`, `{"local_script_supported":"true"}`, `{"local_script_supported":true}`} {
+		t.Run(payload, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/api/config" {
+					t.Errorf("unexpected request %s", r.URL.Path)
+				}
+				_, _ = w.Write([]byte(payload))
+			}))
+			defer srv.Close()
+			client := cli.NewAPIClient(srv.URL, "ws-1", "test-token")
+			err := requireScriptIsolationSupport(context.Background(), client, "local_directory", map[string]any{"execution_mode": "script"})
+			if (err == nil) != (payload == `{"local_script_supported":true}`) {
+				t.Fatalf("capability=%s: %v", payload, err)
+			}
+		})
+	}
 }

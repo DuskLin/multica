@@ -38,7 +38,7 @@ Common resource types:
   checkout `ref`, and optional prompt-only `default_branch_hint`;
 - `local_directory` — daemon-local path context, with `resource_ref.local_path`,
   `daemon_id`, optional label, and optional `execution_mode` (`in_place`, the
-  default, or `worktree`).
+  default, `worktree`, or `script`). Script mode also requires `init_script`, a Bash `.sh` path.
 
 ## CLI
 
@@ -78,6 +78,15 @@ clear a date; an unset flag leaves it untouched.
 
 `in_place` (default) runs the agent in the user's directory, one task at a time;
 a second task waits in `waiting_local_directory`.
+
+`script` runs a configured Bash initializer from the linked directory, passing a
+new `.worktrees/multica-<date>-<random>` directory as `$1`. The agent then works
+in that directory. Git is not required. Each run, including follow-ups, starts
+fresh; results remain in the destination until manually removed. Work in the
+run's actual current directory, not the source `local_path` in the resource.
+The script must exclude `.worktrees` when copying the source. Configure with
+`--execution-mode script --init-script init-workspace.sh`. Initializer failures
+stop the run; output is in the run environment's `logs/init-workspace.log`.
 
 `worktree` gives each task its own git worktree of that repo, so tasks run
 concurrently and each delivers its work as a branch in the user's repo instead
