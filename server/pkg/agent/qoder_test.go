@@ -174,7 +174,8 @@ done
 func fakeQoderACPScriptWithLateStdoutAfterResult() string {
 	return `#!/bin/sh
 # Fake qodercli that returns session/prompt, then leaves stdout open via a
-# child process that writes one more notification after the bounded drain grace.
+# child process that writes one more notification only after the test observes
+# the completed result, so scheduler delays cannot move it into the drain grace.
 while IFS= read -r line; do
   id=$(printf '%s' "$line" | sed -n 's/.*"id":\([0-9]*\).*/\1/p')
   case "$line" in
@@ -187,7 +188,10 @@ while IFS= read -r line; do
     *'"method":"session/prompt"'*)
       printf '{"jsonrpc":"2.0","method":"session/notification","params":{"sessionId":"ses_fake","update":{"type":"AgentMessageChunk","content":{"type":"text","text":"ok"}}}}\n'
       printf '{"jsonrpc":"2.0","id":%s,"result":{"stopReason":"end_turn","usage":{"inputTokens":1,"outputTokens":2}}}\n' "$id"
-      ( sleep 0.08; printf '{"jsonrpc":"2.0","method":"session/notification","params":{"sessionId":"ses_fake","update":{"type":"AgentMessageChunk","content":{"type":"text","text":"late"}}}}\n' ) &
+      (
+        while [ ! -e "$QODER_RELEASE_LATE_OUTPUT" ]; do sleep 0.01; done
+        printf '{"jsonrpc":"2.0","method":"session/notification","params":{"sessionId":"ses_fake","update":{"type":"AgentMessageChunk","content":{"type":"text","text":"late"}}}}\n' || :
+      ) &
       sleep 30
       ;;
   esac
@@ -658,15 +662,30 @@ func TestQoderMessageStreamDropsSendAfterClose(t *testing.T) {
 	}
 }
 
-func TestQoderBackendIgnoresLateReaderOutputAfterGrace(t *testing.T) {
+func TestQoderBackendCompletesBeforeLateReaderOutput(t *testing.T) {
 	oldGrace := qoderReaderDrainGrace
 	qoderReaderDrainGrace = 25 * time.Millisecond
 	t.Cleanup(func() { qoderReaderDrainGrace = oldGrace })
 
-	fakePath := filepath.Join(t.TempDir(), "qodercli")
+	dir := t.TempDir()
+	releaseFile := filepath.Join(dir, "release-late-output")
+	releaseLateOutput := func() {
+		t.Helper()
+		if err := os.WriteFile(releaseFile, nil, 0o600); err != nil {
+			t.Error(err)
+		}
+	}
+	t.Cleanup(releaseLateOutput)
+	fakePath := filepath.Join(dir, "qodercli")
 	writeTestExecutable(t, fakePath, []byte(fakeQoderACPScriptWithLateStdoutAfterResult()))
 
-	backend, err := New("qoder", Config{ExecutablePath: fakePath, Logger: slog.Default()})
+	backend, err := New("qoder", Config{
+		ExecutablePath: fakePath,
+		Logger:         slog.Default(),
+		Env: map[string]string{
+			"QODER_RELEASE_LATE_OUTPUT": releaseFile,
+		},
+	})
 	if err != nil {
 		t.Fatalf("new qoder backend: %v", err)
 	}
@@ -678,9 +697,13 @@ func TestQoderBackendIgnoresLateReaderOutputAfterGrace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
+	messagesDone := make(chan []Message, 1)
 	go func() {
-		for range session.Messages {
+		var messages []Message
+		for message := range session.Messages {
+			messages = append(messages, message)
 		}
+		messagesDone <- messages
 	}()
 
 	select {
@@ -695,7 +718,19 @@ func TestQoderBackendIgnoresLateReaderOutputAfterGrace(t *testing.T) {
 		t.Fatal("qoder result blocked waiting for reader shutdown")
 	}
 
-	time.Sleep(150 * time.Millisecond)
+	// Tree cancellation must complete without waiting for the blocked writer.
+	// Release it after the result and ensure no late text reaches the stream.
+	releaseLateOutput()
+	select {
+	case messages := <-messagesDone:
+		for _, message := range messages {
+			if strings.Contains(message.Content, "late") {
+				t.Fatalf("late reader output reached the message stream: %+v", message)
+			}
+		}
+	case <-ctx.Done():
+		t.Fatal("message stream did not close after the result")
+	}
 }
 
 // TestQoderForwardsMcpAuthHeaderToSessionNew is the end-to-end guard for the

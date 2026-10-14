@@ -9,9 +9,62 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+// TestCodexCancellationRetriesTreeKill models a group signal missing a child
+// that was still forking. Cancellation must retry without paying the normal
+// graceful shutdown timeout, and must reap the stdout-holding descendant.
+func TestCodexCancellationRetriesTreeKill(t *testing.T) {
+	codexGracefulShutdownTimeoutNanos.Store(int64(3 * time.Second))
+	t.Cleanup(func() { codexGracefulShutdownTimeoutNanos.Store(0) })
+
+	originalKill := reapKill
+	var cancelledCommand atomic.Pointer[exec.Cmd]
+	var killPasses atomic.Int32
+	reapKill = func(cmd *exec.Cmd) {
+		if !strings.Contains(strings.Join(cmd.Args, " "), "app-server") {
+			originalKill(cmd)
+			return
+		}
+		cancelledCommand.Store(cmd)
+		if killPasses.Add(1) == 1 {
+			// Only the leader receives the first signal; its child keeps stdout.
+			_ = cmd.Process.Kill()
+			return
+		}
+		originalKill(cmd)
+	}
+	t.Cleanup(func() {
+		if cmd := cancelledCommand.Load(); cmd != nil {
+			originalKill(cmd)
+			waitProcessGroupGone(cmd, time.Second)
+		}
+		reapKill = originalKill
+	})
+
+	marker := filepath.Join(t.TempDir(), "turn-start-read")
+	fakePath := writeFakeCodexAppServer(t, ""+
+		`read line`+"\n"+
+		`echo '{"jsonrpc":"2.0","id":1,"result":{}}'`+"\n"+
+		`read line`+"\n"+
+		`read line`+"\n"+
+		`echo '{"jsonrpc":"2.0","id":2,"result":{"thread":{"id":"thr-retry"}}}'`+"\n"+
+		`read line`+"\n"+
+		`sleep 30 &`+"\n"+
+		`echo ready > `+marker+"\n"+
+		`wait`+"\n")
+
+	result, elapsed := cancelFakeCodexAfterMarker(t, fakePath, marker, ExecOptions{})
+	if result.Status != "aborted" || elapsed > time.Second {
+		t.Fatalf("cancellation = %s after %s, want aborted within one second", result.Status, elapsed)
+	}
+	if killPasses.Load() < 2 {
+		t.Fatal("cancellation did not retry the missed tree kill")
+	}
+}
 
 // TestRuntimeCommandsGetTheirOwnProcessGroup pins the default that GH #7522
 // showed was missing. Before, each backend had to remember to ask for a process

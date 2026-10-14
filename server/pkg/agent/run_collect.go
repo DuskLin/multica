@@ -13,8 +13,8 @@ import (
 	"time"
 )
 
-// collectReapWindow bounds how long finish() keeps re-signalling the process
-// tree, and collectReapStep is the interval between passes.
+// collectReapWindow bounds repeated process-tree kills during collection or
+// cancellation, and collectReapStep is the interval between passes.
 //
 // One pass is not enough. A descendant whose fork completes between the kill's
 // enumeration of the group and the signal's delivery never receives it, and only
@@ -364,12 +364,7 @@ func (c *collector) finish() {
 		//
 		// Retried across collectReapWindow because a single pass loses a
 		// descendant that was mid-fork when the signal went out; see there.
-		reapKill(c.cmd)
-		treeGone := waitProcessGroupGone(c.cmd, collectReapStep)
-		for reapDeadline := time.Now().Add(collectReapWindow); !treeGone && time.Now().Before(reapDeadline); {
-			reapKill(c.cmd)
-			treeGone = waitProcessGroupGone(c.cmd, collectReapStep)
-		}
+		treeGone := reapProcessTreeWithRetry(c.cmd)
 
 		// Because this package owns the pipes, Wait is not being held open by a
 		// descendant: it returns as soon as the direct child is gone, which the
@@ -407,6 +402,19 @@ func (c *collector) finish() {
 // reapKill is the process-tree kill, indirected so a test can make one pass miss
 // and prove the retry in finish() is what recovers. Production never reassigns it.
 var reapKill = reapProcessTree
+
+// reapProcessTreeWithRetry kills an owned tree and retries within the existing
+// short reap window if a concurrent fork missed a signal. It reports whether
+// the group disappeared; callers still own waiting for and releasing cmd.
+func reapProcessTreeWithRetry(cmd *exec.Cmd) bool {
+	reapKill(cmd)
+	treeGone := waitProcessGroupGone(cmd, collectReapStep)
+	for deadline := time.Now().Add(collectReapWindow); !treeGone && time.Now().Before(deadline); {
+		reapKill(cmd)
+		treeGone = waitProcessGroupGone(cmd, collectReapStep)
+	}
+	return treeGone
+}
 
 func waitUntil(done <-chan struct{}, deadline time.Time) bool {
 	select {

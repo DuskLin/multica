@@ -4099,21 +4099,34 @@ func TestCodexExecuteLegacyFirstTurnMessageSatisfiesProgress(t *testing.T) {
 		`read line`+"\n"+
 		`echo '{"jsonrpc":"2.0","id":3,"result":{}}'`+"\n"+
 		`echo '{"jsonrpc":"2.0","method":"codex/event","params":{"msg":{"type":"task_started"}}}'`+"\n"+
-		`sleep 0.05`+"\n"+
 		`echo '{"jsonrpc":"2.0","method":"codex/event","params":{"msg":{"type":"agent_message","message":"legacy alive"}}}'`+"\n"+
-		`sleep 0.07`+"\n"+
 		`echo '{"jsonrpc":"2.0","method":"codex/event","params":{"msg":{"type":"task_complete"}}}'`+"\n")
 
-	result := executeFakeCodex(t, fakePath, ExecOptions{
+	// Assert the semantic activity directly instead of inferring it from two
+	// subprocess sleeps straddling a 100ms deadline under the race detector.
+	var logs bytes.Buffer
+	result, _ := executeFakeCodexCollectingMessagesWithConfig(t, fakePath, Config{
+		Logger: slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
+	}, ExecOptions{
 		Timeout:                   5 * time.Second,
-		SemanticInactivityTimeout: 100 * time.Millisecond,
-	})
+		SemanticInactivityTimeout: 5 * time.Second,
+	}, 10*time.Second)
 	if result.Status != "completed" {
 		t.Fatalf("expected completed, got status=%q error=%q", result.Status, result.Error)
 	}
 	if result.Output != "legacy alive" {
 		t.Fatalf("expected legacy output, got %q", result.Output)
 	}
+	for _, entry := range parseJSONLogEntries(t, logs.String()) {
+		if entry["msg"] == "codex agent message received" && entry["type"] == string(MessageText) {
+			activity := describeCodexSemanticActivity(Message{Type: MessageText})
+			if !isCodexFirstTurnProgressActivity(activity) {
+				t.Fatalf("legacy message activity %q does not satisfy first-turn progress", activity)
+			}
+			return
+		}
+	}
+	t.Fatal("legacy agent message was not reported as semantic progress")
 }
 
 func TestCodexExecuteSemanticInactivityAllowsContinuousMessages(t *testing.T) {
