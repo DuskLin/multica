@@ -40,3 +40,28 @@ unresolved reachable vulnerability.
 
 Every Go binary retains its compiler version in the standard Go build metadata;
 use `go version -m <binary>` when auditing a downloaded release artifact.
+
+## Fork container releases
+
+For a private deployment of fork changes, tag the intended fork commit with a
+prerelease version such as `v0.6.3-local.1`. The same verification gate and native
+AMD64/ARM64 image jobs run, publishing `multica-backend` and `multica-web` under
+the lowercase fork owner at GHCR. Prerelease tags do not update `latest`.
+The upstream-only CLI, Homebrew, desktop, and Helm publishers are skipped.
+
+The workflow uses its repository `GITHUB_TOKEN` with `packages: write`; no
+Docker Hub credential is required. New GHCR packages may be private. Make the
+intended deployment packages public, or configure a read-only package credential
+on the deployment host before pulling.
+
+Set `MULTICA_BACKEND_IMAGE=ghcr.io/<owner>/multica-backend`,
+`MULTICA_WEB_IMAGE=ghcr.io/<owner>/multica-web`, and `MULTICA_IMAGE_TAG` to the
+exact published tag in the server's `.env`, then run:
+
+```bash
+docker compose -f docker-compose.selfhost.yml pull
+docker compose -f docker-compose.selfhost.yml up -d --no-build
+```
+
+Wait for the release workflow to succeed and check `/readyz`, the public web
+entrypoint, and daemon WebSocket routing before considering deployment complete.
