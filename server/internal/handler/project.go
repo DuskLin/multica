@@ -887,6 +887,9 @@ func (h *Handler) SearchProjects(w http.ResponseWriter, r *http.Request) {
 		return rows.Err()
 	})
 	if err != nil {
+		if writeSearchCancellation(w, r, err) {
+			return
+		}
 		// Statement-timeout surfaces as SQLSTATE 57014 — same
 		// fail-fast contract as SearchIssues (see runSearchQuery).
 		if isSearchStatementTimeout(err) {
@@ -899,6 +902,9 @@ func (h *Handler) SearchProjects(w http.ResponseWriter, r *http.Request) {
 		}
 		slog.Warn("search projects failed", "error", err, "workspace_id", workspaceID, "query", q)
 		writeError(w, http.StatusInternalServerError, "failed to search projects")
+		return
+	}
+	if writeSearchCancellation(w, r, ctx.Err()) {
 		return
 	}
 
@@ -954,6 +960,9 @@ func (h *Handler) SearchProjects(w http.ResponseWriter, r *http.Request) {
 		resp[i] = spr
 	}
 
+	if writeSearchCancellation(w, r, ctx.Err()) {
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"projects": resp,
 	})
