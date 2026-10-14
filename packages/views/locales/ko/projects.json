@@ -116,7 +116,7 @@
     "local_validate_not_writable": "디렉터리에 쓸 수 없습니다.",
     "local_validate_unsupported": "로컬 디렉터리는 데스크톱 앱에서만 선택할 수 있습니다.",
     "mode_script_title": "병렬 · 스크립트",
-    "mode_script_description": "실행마다 .worktrees 아래에 새 폴더를 만듭니다. 결과는 직접 삭제할 때까지 보관됩니다.",
+    "mode_script_description": "태스크나 채팅별로 .worktrees 아래의 폴더 하나를 공유합니다. 후속 실행은 같은 폴더에서 순차적으로 진행되며, 결과는 직접 삭제할 때까지 보관됩니다.",
     "init_script_label": "초기화 스크립트 (.sh)",
     "init_script_help": "프로젝트 폴더에서 Bash로 실행하며 대상 폴더를 $1로 전달합니다. 실행 머신에 Bash가 필요합니다.",
     "chat_hint_script_prefix": "스크립트로 초기화한 사본에서 실행:",

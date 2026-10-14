@@ -80,13 +80,20 @@ clear a date; an unset flag leaves it untouched.
 a second task waits in `waiting_local_directory`.
 
 `script` runs a configured Bash initializer from the linked directory, passing a
-new `.worktrees/multica-<date>-<random>` directory as `$1`. The agent then works
-in that directory. Git is not required. Each run, including follow-ups, starts
-fresh; results remain in the destination until manually removed. Work in the
-run's actual current directory, not the source `local_path` in the resource.
+stable `.worktrees/multica-<kind>-<identity>` directory as `$1` on the first run
+of an issue or chat. Git is not required. Follow-ups and retries, including other
+agents, reuse that directory within the same workspace and source directory.
+Runs sharing a directory execute one at a time; unrelated conversations remain
+parallel. Runs without an issue or chat use their own run identity. Results remain
+until manually removed. Work in the run's actual current directory, not the
+source `local_path` in the resource.
 The script must exclude `.worktrees` when copying the source. Configure with
 `--execution-mode script --init-script init-workspace.sh`. Initializer failures
 stop the run; output is in the run environment's `logs/init-workspace.log`.
+Initialization records survive restarts in `.worktrees/.multica-script/`. Failed
+or cancelled initialization preserves partial work and blocks retries until the
+user inspects and moves the partial directory. Existing per-run directories are
+not adopted or removed.
 
 `worktree` gives each task its own git worktree of that repo, so tasks run
 concurrently and each delivers its work as a branch in the user's repo instead

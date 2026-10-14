@@ -117,7 +117,7 @@
     "local_validate_not_writable": "Le répertoire n'est pas inscriptible.",
     "local_validate_unsupported": "Les répertoires locaux ne peuvent être sélectionnés que dans l'application de bureau.",
     "mode_script_title": "Parallèle · script",
-    "mode_script_description": "Chaque exécution crée un dossier dans .worktrees. Les résultats y restent jusqu’à leur suppression manuelle.",
+    "mode_script_description": "Un dossier par tâche ou chat dans .worktrees. Les exécutions suivantes le réutilisent une par une ; les résultats restent jusqu’à leur suppression manuelle.",
     "init_script_label": "Script d’initialisation (.sh)",
     "init_script_help": "Bash lance ce script depuis le dossier du projet et lui passe la destination en $1. Bash est requis sur la machine d’exécution.",
     "chat_hint_script_prefix": "Exécution dans une copie initialisée par script de",

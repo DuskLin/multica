@@ -28,7 +28,7 @@ func scriptFixture(t *testing.T, body string) LocalScriptParams {
 	if err := os.WriteFile(filepath.Join(source, script), []byte("#!/usr/bin/env bash\nset -eu\n"+body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	return LocalScriptParams{LocalPath: source, InitScript: script}
+	return LocalScriptParams{LocalPath: source, InitScript: script, WorkspaceID: "script-workspace", TaskID: "script-task"}
 }
 
 func TestLocalScriptParallelNonGit(t *testing.T) {
@@ -38,8 +38,10 @@ func TestLocalScriptParallelNonGit(t *testing.T) {
 		err  error
 	}
 	results := make(chan result, 2)
-	for range 2 {
+	for _, taskID := range []string{"first", "second"} {
 		root := t.TempDir()
+		params := params
+		params.TaskID = taskID
 		go func() {
 			path, err := prepareLocalScript(params, root)
 			results <- result{path, err}
@@ -61,6 +63,159 @@ func TestLocalScriptParallelNonGit(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(params.LocalPath, "source.txt")); !os.IsNotExist(err) {
 		t.Fatal("initializer wrote into the source instead of the destination")
+	}
+}
+
+// TestLocalScriptFollowupsPreserveEdits verifies that later runs and agents of
+// one issue reuse its directory without executing the initializer again.
+func TestLocalScriptFollowupsPreserveEdits(t *testing.T) {
+	params := scriptFixture(t, "printf initialized > \"$1/result.txt\"\nprintf called >> \"$PWD/calls.txt\"\n")
+	params.IssueID = "issue-one"
+	first, err := prepareLocalScript(params, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(first, "result.txt"), []byte("agent edits"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	params.TaskID = "followup-run"
+	second, err := prepareLocalScript(params, t.TempDir())
+	if err != nil || second != first {
+		t.Fatalf("followup lost its workspace: %q, %v", second, err)
+	}
+	content, err := os.ReadFile(filepath.Join(second, "result.txt"))
+	if err != nil || string(content) != "agent edits" {
+		t.Fatalf("followup overwrote edits: %q, %v", content, err)
+	}
+	calls, err := os.ReadFile(filepath.Join(params.LocalPath, "calls.txt"))
+	if err != nil || string(calls) != "called" {
+		t.Fatalf("initializer ran again: %q, %v", calls, err)
+	}
+}
+
+// TestLocalScriptConversationIsolation checks the workspace and conversation
+// boundaries, including chat sessions and runs with no durable conversation.
+func TestLocalScriptConversationIsolation(t *testing.T) {
+	params := scriptFixture(t, "printf ready > \"$1/result.txt\"\n")
+	params.IssueID = "conversation"
+	first, err := prepareLocalScript(params, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name   string
+		params LocalScriptParams
+	}{
+		{name: "other workspace", params: LocalScriptParams{WorkspaceID: "other", IssueID: "conversation"}},
+		{name: "other issue", params: LocalScriptParams{WorkspaceID: params.WorkspaceID, IssueID: "other"}},
+		{name: "chat with matching id", params: LocalScriptParams{WorkspaceID: params.WorkspaceID, ChatSessionID: "conversation"}},
+		{name: "standalone run", params: LocalScriptParams{WorkspaceID: params.WorkspaceID, TaskID: "conversation"}},
+	}
+	seen := map[string]bool{first: true}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			isolated := tc.params
+			isolated.LocalPath, isolated.InitScript = params.LocalPath, params.InitScript
+			path, err := prepareLocalScript(isolated, t.TempDir())
+			if err != nil || seen[path] {
+				t.Fatalf("conversation shared another workspace: %q, %v", path, err)
+			}
+			seen[path] = true
+			isolated.TaskID = "another-run"
+			if isolated.ChatSessionID != "" {
+				continued, err := prepareLocalScript(isolated, t.TempDir())
+				if err != nil || continued != path {
+					t.Fatalf("chat did not continue: %q, %v", continued, err)
+				}
+			}
+		})
+	}
+}
+
+// TestLocalScriptFailedInitializationIsNotReplayed protects partial work from
+// destructive retries and ensures failures cannot allocate extra directories.
+func TestLocalScriptFailedInitializationIsNotReplayed(t *testing.T) {
+	params := scriptFixture(t, "printf partial >> \"$1/result.txt\"\nexit 7\n")
+	params.IssueID = "failed-issue"
+	if _, err := prepareLocalScript(params, t.TempDir()); err == nil {
+		t.Fatal("initializer unexpectedly succeeded")
+	}
+	params.TaskID = "retry"
+	if _, err := prepareLocalScript(params, t.TempDir()); err == nil || !strings.Contains(err.Error(), "incomplete") {
+		t.Fatalf("partial initialization was silently retried: %v", err)
+	}
+	files, err := filepath.Glob(filepath.Join(params.LocalPath, ".worktrees", "multica-*", "result.txt"))
+	if err != nil || len(files) != 1 {
+		t.Fatalf("retry created extra workspaces: %v, %v", files, err)
+	}
+	content, err := os.ReadFile(files[0])
+	if err != nil || string(content) != "partial" {
+		t.Fatalf("retry modified partial work: %q, %v", content, err)
+	}
+}
+
+// TestLocalScriptWorkspaceClaim protects the whole run across daemon processes
+// and permits a new holder after release without replacing the lock file.
+func TestLocalScriptWorkspaceClaim(t *testing.T) {
+	params := scriptFixture(t, "printf ready > \"$1/result.txt\"\n")
+	params.IssueID = "shared-issue"
+	release, err := ClaimLocalScriptWorkspace(params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(release)
+	params.TaskID = "another-run"
+	if duplicateRelease, err := ClaimLocalScriptWorkspace(params); err == nil {
+		duplicateRelease()
+		t.Fatal("another daemon claimed a live conversation")
+	}
+	release()
+	release()
+	nextRelease, err := ClaimLocalScriptWorkspace(params)
+	if err != nil {
+		t.Fatalf("released workspace remained busy: %v", err)
+	}
+	nextRelease()
+}
+
+// TestLocalScriptRejectsReusedSymlink prevents a ready workspace redirected by
+// a later actor from pointing an agent at the user's source directory.
+func TestLocalScriptRejectsReusedSymlink(t *testing.T) {
+	params := scriptFixture(t, "printf ready > \"$1/result.txt\"\n")
+	path, err := prepareLocalScript(params, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(path, path+"-saved"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(params.LocalPath, path); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := prepareLocalScript(params, t.TempDir()); err == nil || !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("reused workspace followed a symlink: %v", err)
+	}
+}
+
+// TestLocalScriptRecreatedWorkspaceCannotReuseOldReadyRecord checks that a
+// failed reinitialization does not inherit a deleted directory's ready state.
+func TestLocalScriptRecreatedWorkspaceCannotReuseOldReadyRecord(t *testing.T) {
+	params := scriptFixture(t, "printf ready > \"$1/result.txt\"\n")
+	path, err := prepareLocalScript(params, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(path, path+"-saved"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(params.LocalPath, params.InitScript), []byte("printf partial > \"$1/result.txt\"\nexit 7\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := prepareLocalScript(params, t.TempDir()); err == nil {
+		t.Fatal("reinitialization unexpectedly succeeded")
+	}
+	if _, err := prepareLocalScript(params, t.TempDir()); err == nil || !strings.Contains(err.Error(), "incomplete") {
+		t.Fatalf("old ready record accepted partial reinitialization: %v", err)
 	}
 }
 

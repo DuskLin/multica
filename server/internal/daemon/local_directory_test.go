@@ -1214,17 +1214,18 @@ func TestIssueTasksStillSerialiseOnPathMutex(t *testing.T) {
 	release()
 }
 
-func TestAcquireLocalDirectoryLockSkipsScriptMode(t *testing.T) {
+func TestAcquireLocalDirectoryLockAllowsIndependentScriptRuns(t *testing.T) {
 	const daemonID = "script-daemon"
 	source := t.TempDir()
 	raw, _ := json.Marshal(localDirectoryRef{LocalPath: source, DaemonID: daemonID, ExecutionMode: localDirectoryModeScript, InitScript: "init.sh"})
 	resources := []ProjectResourceData{{ID: "r1", ResourceType: localDirectoryResourceType, ResourceRef: raw}}
 	d := &Daemon{cfg: Config{DaemonID: daemonID}, localPathLocks: NewLocalPathLocker(), logger: slog.Default()}
 	for _, id := range []string{"first", "second"} {
-		release, abort := d.acquireLocalDirectoryLockIfNeeded(context.Background(), Task{ID: id, ProjectResources: resources}, slog.Default())
-		if abort || release != nil {
-			t.Fatalf("script mode took a shared directory lock: abort=%v", abort)
+		release, abort := d.acquireLocalDirectoryLockIfNeeded(context.Background(), Task{ID: id, WorkspaceID: "ws-script", ProjectResources: resources}, slog.Default())
+		if abort || release == nil {
+			t.Fatalf("independent script run could not claim its directory: abort=%v", abort)
 		}
+		t.Cleanup(release)
 	}
 	assignment, err := findLocalDirectoryAssignment(resources, daemonID)
 	if err != nil || !assignment.IsIsolated() || assignment.UsesWorktree() {

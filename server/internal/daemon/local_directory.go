@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+
+	"github.com/multica-ai/multica/server/internal/daemon/execenv"
 )
 
 // localDirectoryResourceType is the project_resource discriminator the daemon
@@ -54,15 +56,24 @@ type localDirectoryAssignment struct {
 
 // UsesWorktree reports whether this assignment runs each task in its own git
 // worktree instead of in the user's directory. Worktree tasks skip the per-path
-// mutex entirely — that is the whole point of the mode — so every caller that
-// serialises, cleans up sidecars, or exempts the env root from GC must branch
-// on IsIsolated rather than on "is there a local_directory assignment at all".
+// mutex entirely. Script mode instead locks its stable conversation directory;
+// both isolated modes keep execution off the user's source directory.
 func (a *localDirectoryAssignment) UsesWorktree() bool {
 	return a != nil && strings.TrimSpace(a.Ref.ExecutionMode) == localDirectoryModeWorktree
 }
 
 func (a *localDirectoryAssignment) UsesScript() bool {
 	return a != nil && strings.TrimSpace(a.Ref.ExecutionMode) == localDirectoryModeScript
+}
+
+// localScriptParamsForTask gives locking and preparation the same workspace
+// identity. Agents share an issue/chat directory; unrelated runs stay isolated.
+func localScriptParamsForTask(task Task, assignment *localDirectoryAssignment) execenv.LocalScriptParams {
+	return execenv.LocalScriptParams{
+		LocalPath: assignment.AbsPath, InitScript: assignment.Ref.InitScript,
+		WorkspaceID: task.WorkspaceID, IssueID: task.IssueID,
+		ChatSessionID: task.ChatSessionID, TaskID: task.ID,
+	}
 }
 
 func (a *localDirectoryAssignment) IsIsolated() bool {

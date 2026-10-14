@@ -116,7 +116,7 @@
     "local_validate_not_writable": "ディレクトリに書き込めません。",
     "local_validate_unsupported": "ローカルディレクトリはデスクトップアプリでのみ選択できます。",
     "mode_script_title": "並列 · スクリプト",
-    "mode_script_description": "実行ごとに .worktrees 内に新しいフォルダを作成します。成果物は手動で削除するまで残ります。",
+    "mode_script_description": "タスクやチャットごとに .worktrees 内のフォルダを共有します。後続の実行は同じフォルダで順番に実行され、成果物は手動で削除するまで残ります。",
     "init_script_label": "初期化スクリプト (.sh)",
     "init_script_help": "プロジェクトフォルダから Bash で実行し、出力先を $1 として渡します。実行マシンに Bash が必要です。",
     "chat_hint_script_prefix": "スクリプトで初期化したコピーで実行：",
