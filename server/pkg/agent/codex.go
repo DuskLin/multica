@@ -1206,12 +1206,13 @@ func (b *codexBackend) executeOnce(ctx context.Context, prompt string, opts Exec
 	// Windows.
 	// Override the default exec.CommandContext cancel behaviour. The
 	// default sends SIGKILL only to cmd.Process (the leader); we instead
-	// signal the whole process group so descendants die too. Returning
+	// signal the whole process group, retrying briefly for children that were
+	// mid-fork during the first signal, so descendants die too. Returning
 	// nil keeps exec from logging a spurious error; cmd.WaitDelay below
 	// still backstops cmd.Wait() if the kill leaves an open pipe.
 	cmd.Cancel = func() error {
 		if cmd.Process != nil {
-			signalProcessGroup(cmd, syscall.SIGKILL)
+			reapProcessTreeWithRetry(cmd)
 		}
 		return nil
 	}

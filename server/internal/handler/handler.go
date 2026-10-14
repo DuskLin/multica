@@ -416,6 +416,8 @@ type Handler struct {
 	// so the feature degrades cleanly on deployments without a private key.
 	// Wired in cmd/server/router.go after New.
 	PRRefresh *ghsnapshot.Manager
+	// localPRSync is explicitly enabled for one local workspace and CLI login.
+	localPRSync *localPRSync
 	cfg       Config
 }
 

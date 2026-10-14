@@ -117,7 +117,7 @@
     "local_validate_not_writable": "Directory is not writable.",
     "local_validate_unsupported": "Local directories can only be picked on the desktop app.",
     "mode_script_title": "Parallel · script",
-    "mode_script_description": "Each run gets a new folder under .worktrees. Results are kept there until you remove them.",
+    "mode_script_description": "One folder per issue or chat under .worktrees. Follow-up runs reuse it and run one at a time; results remain until manually removed.",
     "init_script_label": "Initialization script (.sh)",
     "init_script_help": "Bash runs this script from the project folder and passes the destination as $1. Requires Bash on the runtime machine.",
     "chat_hint_script_prefix": "Runs in a script-initialized copy of",

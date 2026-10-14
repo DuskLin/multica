@@ -6144,7 +6144,7 @@ func (d *Daemon) acquireLocalDirectoryLockIfNeeded(ctx context.Context, task Tas
 	// what lets sibling tasks on one directory run concurrently. Path
 	// validation above still applies — git needs to write worktree
 	// registrations into the user's repo.
-	if assignment.IsIsolated() {
+	if assignment.UsesWorktree() {
 		taskLog.Info("local_directory: isolated mode, skipping path mutex", "mode", assignment.Ref.ExecutionMode)
 		return nil, false
 	}
@@ -6156,9 +6156,24 @@ func (d *Daemon) acquireLocalDirectoryLockIfNeeded(ctx context.Context, task Tas
 	// behind a 20-minute build with nothing to contribute to it (issue #7344).
 	// See localDirectoryLockExempt for why the mutex does not owe this task a
 	// slot.
-	if localDirectoryLockExempt(task) {
+	if !assignment.UsesScript() && localDirectoryLockExempt(task) {
 		taskLog.Info("local_directory: chat task, skipping path mutex")
 		return nil, false
+	}
+	lockPath := assignment.RealPath
+	if assignment.UsesScript() {
+		// Script mode isolates conversations, not their individual runs. Lock
+		// the stable destination so other issues can still execute in parallel.
+		lockPath, err = localScriptParamsForTask(task, assignment).WorkspacePath()
+		if err != nil {
+			if failErr := d.reportTerminalTask(ctx, terminalTaskReport{
+				kind: terminalTaskReportFail, taskID: task.ID,
+				errorMessage: err.Error(), failureReason: "local_directory_error",
+			}); failErr != nil {
+				taskLog.Error("fail task after script workspace resolution", "error", failErr)
+			}
+			return nil, true
+		}
 	}
 
 	// While the lock is contended the daemon would otherwise sit blocked on
@@ -6237,7 +6252,20 @@ func (d *Daemon) acquireLocalDirectoryLockIfNeeded(ctx context.Context, task Tas
 			}()
 		})
 	}
-	release, err = d.localPathLocks.Acquire(waitCtx, assignment.RealPath, task.ID, onWait)
+	release, err = d.localPathLocks.Acquire(waitCtx, lockPath, task.ID, onWait)
+	if err == nil && assignment.UsesScript() {
+		// Hold both locks through preparation, execution and sidecar cleanup.
+		// The file lock also excludes another daemon process using this source.
+		var releaseClaim func()
+		releaseClaim, err = execenv.ClaimLocalScriptWorkspace(localScriptParamsForTask(task, assignment))
+		if err != nil {
+			release()
+			release = nil
+		} else {
+			releasePath := release
+			release = func() { releaseClaim(); releasePath() }
+		}
+	}
 	if err != nil {
 		// If the wait was cut short because the server finalized the task
 		// (terminal state) or deleted the row, the row is already in a
@@ -6260,7 +6288,7 @@ func (d *Daemon) acquireLocalDirectoryLockIfNeeded(ctx context.Context, task Tas
 		if failErr := d.reportTerminalTask(ctx, terminalTaskReport{
 			kind:          terminalTaskReportFail,
 			taskID:        task.ID,
-			errorMessage:  fmt.Sprintf("local_directory wait cancelled: %s", err.Error()),
+			errorMessage:  fmt.Sprintf("local_directory lock failed: %s", err.Error()),
 			failureReason: failureReason,
 		}); failErr != nil {
 			taskLog.Error("fail task after local_directory lock cancel", "error", failErr)
@@ -8251,7 +8279,8 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			}
 		} else {
 			if localAssignment.UsesScript() {
-				prepParams.LocalScript = &execenv.LocalScriptParams{LocalPath: localAssignment.AbsPath, InitScript: localAssignment.Ref.InitScript}
+				scriptParams := localScriptParamsForTask(task, localAssignment)
+				prepParams.LocalScript = &scriptParams
 			} else if localAssignment != nil {
 				prepParams.LocalWorkDir = localAssignment.AbsPath
 			}

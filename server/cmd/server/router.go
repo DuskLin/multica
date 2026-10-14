@@ -446,6 +446,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		ServerVersion:            normalizeServerVersion(version),
 	}
 	h := handler.New(queries, pool, hub, bus, emailSvc, store, cfSigner, analyticsClient, signupConfig, daemonHub)
+	if workspaceID := strings.TrimSpace(os.Getenv("MULTICA_LOCAL_PR_SYNC_WORKSPACE_ID")); workspaceID != "" {
+		if err := h.ConfigureLocalPRSync(workspaceID, strings.TrimSpace(os.Getenv("MULTICA_LOCAL_PR_SYNC_GH_PATH"))); err != nil {
+			slog.Error("local PR sync disabled", "err", err)
+		}
+	}
 	invitationRateLimits := handler.DefaultInvitationRateLimits()
 	invitationRateLimits.Actor.Limit = envNonNegativeInt("RATE_LIMIT_INVITATION_ACTOR_10M", invitationRateLimits.Actor.Limit)
 	invitationRateLimits.Workspace.Limit = envNonNegativeInt("RATE_LIMIT_INVITATION_WORKSPACE_24H", invitationRateLimits.Workspace.Limit)

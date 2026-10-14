@@ -559,9 +559,12 @@ func TestProvisionDshMulticaProfile_CancellationKillsTheWholeTree(t *testing.T) 
 	dshPath := filepath.Join(dir, "dsh")
 	// The grandchild publishes its pid, then writes the record well after the
 	// cancellation below — so the file is evidence of a survivor, and the pid is
-	// evidence of one that never needed to write at all.
+	// evidence of one that never needed to write at all. Ignore TERM in both the
+	// shell and its sleep: otherwise TERM can interrupt sleep before reaching the
+	// shell, allowing the next printf to run during graceful cleanup. This also
+	// verifies that cleanup escalates even when only the leader exits on TERM.
 	script := "#!/bin/sh\n" +
-		"sh -c 'printf %s $$ > " + pidFile + "; sleep 2; printf late >> " + record + "' >/dev/null 2>&1 &\n" +
+		"sh -c 'trap \"\" TERM; printf %s $$ > " + pidFile + "; sleep 2; printf late >> " + record + "' >/dev/null 2>&1 &\n" +
 		"while [ ! -s " + pidFile + " ]; do sleep 0.05; done\n" +
 		"exec sleep 30\n"
 	if err := os.WriteFile(dshPath, []byte(script), 0o755); err != nil {

@@ -100,7 +100,7 @@ Worktree mode covers git repositories. A non-Git directory can also run in paral
 
 Choose **Parallel · script** when creating a project or editing a local directory's execution mode. Set a `.sh` initializer path, absolute or relative to the linked project directory. Git is not required. The runtime machine needs Bash, and both the server and runtime must support script isolation.
 
-Each run creates an empty `<project>/.worktrees/multica-<date>-<random>` directory, then runs the initializer from the project directory:
+The first run of an issue or chat creates an empty `<project>/.worktrees/multica-<kind>-<identity>` directory, then runs the initializer from the project directory:
 
 ```bash
 bash -- /path/to/init-workspace.sh "$WORKTREE_DIR"
@@ -120,7 +120,9 @@ rsync -a --exclude='.worktrees' --exclude='node_modules' \
 
 The agent starts in the destination only after the script exits successfully. Initializer output is saved to `logs/init-workspace.log` in the run environment. A failed initializer stops the run and reports the log and preserved directory paths. Initialization shares the existing five-minute preparation deadline; cancellation or timeout terminates the preparation process and its children.
 
-Every run, including follow-ups, initializes a fresh directory rather than continuing the previous directory's edits. Run details points to the resulting working directory. Results survive success, failure, and cancellation until you remove the directory manually. Multica does not commit, merge, or delete them. The script executes as the runtime user and is responsible for its copying, repository updates, and protection of the source directory.
+All runs of the same issue or chat, including follow-ups and retries by other agents, reuse one directory within the same workspace and source directory. Runs sharing it execute one at a time; unrelated conversations can run concurrently. The initializer runs only once after successful initialization, and the directory is reused after runtime restarts. Runs with no issue or chat use their own run identity. Run details points to this working directory. Results survive success, failure, and cancellation until you remove the directory manually. Multica does not commit, merge, or delete them.
+
+Ownership and initialization records live in `.worktrees/.multica-script/`. If initialization fails or is cancelled, the partial directory is preserved and retries stop rather than rerun the script over existing work. Inspect and move that directory before retrying to initialize it again. Existing directories created by the previous per-run behavior remain untouched. The script executes as the runtime user and is responsible for its copying, repository updates, and protection of the source directory.
 
 ```bash
 multica project resource add <project-id> \

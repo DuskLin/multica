@@ -491,7 +491,12 @@ func Prepare(params PrepareParams, logger *slog.Logger) (*Environment, error) {
 		if params.LocalWorkDir != "" || params.LocalWorktree != nil {
 			return nil, errors.New("execenv: script isolation cannot be combined with another local mode")
 		}
-		params.LocalWorkDir, err = prepareLocalScript(*params.LocalScript, envRoot)
+		scriptParams := *params.LocalScript
+		scriptParams.WorkspaceID = params.WorkspaceID
+		scriptParams.TaskID = params.TaskID
+		scriptParams.IssueID = params.Task.IssueID
+		scriptParams.ChatSessionID = params.Task.ChatSessionID
+		params.LocalWorkDir, err = prepareLocalScript(scriptParams, envRoot)
 		if err != nil {
 			return nil, err
 		}

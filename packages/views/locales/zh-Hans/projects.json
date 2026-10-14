@@ -116,7 +116,7 @@
     "local_validate_not_writable": "目录不可写。",
     "local_validate_unsupported": "本地目录仅能在桌面端选择。",
     "mode_script_title": "并行 · 脚本",
-    "mode_script_description": "每次运行在 .worktrees 下创建独立目录，成果保留在该目录中，需手动清理。",
+    "mode_script_description": "每个任务或对话在 .worktrees 下共用一个目录，后续运行复用并串行执行，成果需手动清理。",
     "init_script_label": "初始化脚本（.sh）",
     "init_script_help": "在项目目录中通过 Bash 执行，目标目录作为 $1 传入。运行时所在机器需安装 Bash。",
     "chat_hint_script_prefix": "在脚本初始化的副本中运行：",
