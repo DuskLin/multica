@@ -10,6 +10,8 @@ root = Path("apps/desktop/dist")
 apps = list(root.glob("mac*/Multica.app"))
 assert len(apps) == 1, f"Expected one packaged app, found {apps}"
 contents = apps[0] / "Contents"
+for notice in ("LICENSE", "NOTICE"):
+    assert (contents / "Resources" / notice).read_bytes() == Path(notice).read_bytes()
 with (contents / "Info.plist").open("rb") as source:
     info = plistlib.load(source)
 assert info["CFBundleShortVersionString"] == os.environ["VERSION"]

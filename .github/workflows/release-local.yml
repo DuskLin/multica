@@ -149,7 +149,7 @@ jobs:
         run: |
           owner="${RELEASE_REPOSITORY%%/*}"
           repo="${RELEASE_REPOSITORY#*/}"
-          node scripts/package.mjs --mac --${{ matrix.arch }} --publish never \
+          pnpm run package --mac --${{ matrix.arch }} --publish never \
             "-c.publish.owner=$owner" "-c.publish.repo=$repo" \
             -c.publish.releaseType=prerelease
       - name: Verify packaged deployment and architecture
@@ -193,10 +193,16 @@ jobs:
           packages: platform-tools
           log-accepted-android-sdk-licenses: "false"
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
       - run: pnpm install --frozen-lockfile
       - name: Generate Android project
         working-directory: apps/mobile
         run: pnpm exec expo prebuild --platform android --no-install
+      - name: Bundle project notices
+        run: |
+          mkdir -p apps/mobile/android/app/src/main/assets
+          cp LICENSE NOTICE apps/mobile/android/app/src/main/assets/
       - name: Build release APK
         working-directory: apps/mobile/android
         run: ./gradlew :app:assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64
@@ -219,6 +225,10 @@ jobs:
           "$build_tools/apksigner" verify --verbose --print-certs "$apk"
           "$build_tools/aapt" dump badging "$apk" | head -1
           "$build_tools/aapt" dump badging "$apk" | grep -F "versionName='${MULTICA_RELEASE_VERSION}'"
+          unzip -p "$apk" assets/LICENSE | cmp LICENSE -
+          unzip -p "$apk" assets/NOTICE | cmp NOTICE -
+          unzip -p "$apk" assets/index.android.bundle > "$RUNNER_TEMP/mobile.bundle"
+          grep -aFq "$EXPO_PUBLIC_API_URL" "$RUNNER_TEMP/mobile.bundle"
       - uses: actions/upload-artifact@v4
         with:
           name: local-android
