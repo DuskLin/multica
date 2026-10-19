@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -940,6 +941,11 @@ func captureUserSnapshot(gitRoot, envRoot, headSHA string, logger *slog.Logger) 
 	// not a failure — read-tree rebuilds a correct index, merely a colder one —
 	// so the fallback runs on any error from the add, not just from the copy.
 	seeded := seedSnapshotIndex(gitRoot, indexPath)
+	if !seeded {
+		if out, err := runGitEnv(gitRoot, env, "read-tree", headSHA); err != nil {
+			return "", fmt.Errorf("git read-tree: %s: %w", strings.TrimSpace(out), err)
+		}
+	}
 	addArgs := append([]string{"add", "-A", "--"}, snapshotExcludes()...)
 	if out, err := runGitEnv(gitRoot, env, addArgs...); err != nil {
 		if !seeded {
@@ -975,7 +981,7 @@ func captureUserSnapshot(gitRoot, envRoot, headSHA string, logger *slog.Logger) 
 // seedSnapshotIndex copies the repository's index to path, reporting whether it
 // got one. Read as a plain file rather than through git: git would want the
 // index lock, and this copy exists precisely to avoid waiting on it.
-func seedSnapshotIndex(gitRoot, path string) bool {
+func seedSnapshotIndex(gitRoot, path string) (seeded bool) {
 	src, err := runGitTrimmed(gitRoot, "rev-parse", "--git-path", "index")
 	if err != nil || src == "" {
 		return false
@@ -983,7 +989,32 @@ func seedSnapshotIndex(gitRoot, path string) bool {
 	if !filepath.IsAbs(src) {
 		src = filepath.Join(gitRoot, src)
 	}
-	return copyFile(src, path) == nil
+	in, err := os.Open(src)
+	if err != nil {
+		return false
+	}
+	defer in.Close()
+	info, err := in.Stat()
+	if err != nil {
+		return false
+	}
+	out, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return false
+	}
+	defer func() {
+		if !seeded {
+			_ = os.Remove(path)
+		}
+	}()
+	_, copyErr := io.Copy(out, in)
+	closeErr := out.Close()
+	if copyErr != nil || closeErr != nil {
+		return false
+	}
+	// Git uses the index timestamp to detect racy-clean stat entries. Giving
+	// the copy a newer timestamp can silently drop same-size working edits.
+	return os.Chtimes(path, info.ModTime(), info.ModTime()) == nil
 }
 
 // snapshotExcludes keeps the daemon's own sidecars out of the user's snapshot.

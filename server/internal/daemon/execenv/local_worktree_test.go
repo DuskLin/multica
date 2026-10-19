@@ -1716,6 +1716,43 @@ func TestPrepareLocalWorktreePrunesSnapshotsOfDeletedBranches(t *testing.T) {
 	}
 }
 
+func TestCaptureUserSnapshotPreservesRacySameSizeEdit(t *testing.T) {
+	t.Parallel()
+	repo := newTestRepo(t)
+	file := filepath.Join(repo, "same-size.txt")
+	writeFile(t, file, "before\n")
+	old := time.Now().Add(-time.Hour).Truncate(time.Second)
+	if err := os.Chtimes(file, old, old); err != nil {
+		t.Fatal(err)
+	}
+	gitRun(t, repo, "add", "same-size.txt")
+	gitRun(t, repo, "commit", "-m", "seed same-size file")
+	gitRun(t, repo, "config", "core.trustctime", "false")
+	info, err := os.Stat(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stamp := info.ModTime()
+	writeFile(t, file, "after!\n")
+	if err := os.Chtimes(file, stamp, stamp); err != nil {
+		t.Fatal(err)
+	}
+	// Model an edit within the index's timestamp granularity. Git must rehash
+	// this entry rather than trusting its unchanged size and cached stat data.
+	index := filepath.Join(repo, ".git", "index")
+	if err := os.Chtimes(index, stamp, stamp); err != nil {
+		t.Fatal(err)
+	}
+	head := gitRun(t, repo, "rev-parse", "HEAD")
+	snapshot, err := captureUserSnapshot(repo, t.TempDir(), head, worktreeTestLogger())
+	if err != nil {
+		t.Fatalf("captureUserSnapshot: %v", err)
+	}
+	if got := gitRun(t, repo, "show", snapshot+":same-size.txt"); got != "after!" {
+		t.Fatalf("snapshot lost a same-size user edit: %q", got)
+	}
+}
+
 // The snapshot is the user's directory, not the daemon's view of it: a sidecar
 // left in their tree by a concurrent in_place task must never reach the branch.
 func TestCaptureUserSnapshotExcludesMulticaSidecars(t *testing.T) {
@@ -1738,6 +1775,23 @@ func TestCaptureUserSnapshotExcludesMulticaSidecars(t *testing.T) {
 	}
 	if !strings.Contains(listed, "real.txt") {
 		t.Errorf("snapshot dropped the user's own file:\n%s", listed)
+	}
+}
+
+func TestCaptureUserSnapshotWithoutIndexPreservesTrackedIgnoredFile(t *testing.T) {
+	t.Parallel()
+	repo := newTestRepo(t)
+	writeFile(t, filepath.Join(repo, ".gitignore"), "tracked.txt\n")
+	if err := os.Remove(filepath.Join(repo, ".git", "index")); err != nil {
+		t.Fatal(err)
+	}
+	head := gitRun(t, repo, "rev-parse", "HEAD")
+	snapshot, err := captureUserSnapshot(repo, t.TempDir(), head, worktreeTestLogger())
+	if err != nil {
+		t.Fatalf("captureUserSnapshot: %v", err)
+	}
+	if got := gitRun(t, repo, "show", snapshot+":tracked.txt"); got != "original" {
+		t.Fatalf("cold snapshot lost a tracked ignored file: %q", got)
 	}
 }
 
