@@ -19,6 +19,7 @@ export interface GitHubAsset {
 }
 
 export interface DownloadAssets {
+  androidApk?: string;
   macArm64Dmg?: string;
   macArm64Zip?: string;
   macX64Dmg?: string;
@@ -34,7 +35,7 @@ export interface DownloadAssets {
 }
 
 const DESKTOP_ARTIFACT_RE =
-  /^multica-desktop-[^-]+-(mac|windows|linux)-([a-z0-9_]+)\.(dmg|zip|exe|AppImage|deb|rpm)$/i;
+  /^multica-desktop-\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?-(mac|windows|linux)-([a-z0-9_]+)\.(dmg|zip|exe|AppImage|deb|rpm)$/i;
 
 function normalizeLinuxArch(arch: string): "amd64" | "arm64" | null {
   const a = arch.toLowerCase();
@@ -47,6 +48,14 @@ export function parseReleaseAssets(raw: GitHubAsset[]): DownloadAssets {
   const out: DownloadAssets = {};
   for (const asset of raw) {
     const name = asset.name;
+    if (
+      /^multica-mobile-\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?-android\.apk$/.test(
+        name,
+      )
+    ) {
+      out.androidApk = asset.browser_download_url;
+      continue;
+    }
     // Skip auxiliary files that share the release (update manifests,
     // blockmaps, checksums). CLI tarballs and other non-desktop
     // artifacts are excluded automatically because they don't match

@@ -56,11 +56,61 @@ function mockFetchWithReleases(releases: unknown[]) {
 }
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
 describe("fetchLatestRelease", () => {
+  it("selects a complete local release from the configured fork", async () => {
+    vi.stubEnv("MULTICA_RELEASE_REPOSITORY", "DuskLin/multica");
+    vi.stubEnv("MULTICA_RELEASE_CHANNEL", "local");
+    const version = "0.6.4-local.1";
+    const assets = [
+      ...macOnlyAssets(version),
+      {
+        name: `multica-mobile-${version}-android.apk`,
+        browser_download_url: "",
+      },
+    ].map((asset) => ({
+      ...asset,
+      browser_download_url: `https://github.com/DuskLin/multica/releases/download/v${version}/${asset.name}`,
+    }));
+    const fetchMock = mockFetchWithReleases([
+      releasePayload({ tag: "v0.6.4-local.2", prerelease: true }),
+      releasePayload({ tag: `v${version}`, prerelease: true, assets }),
+    ]);
+    const result = await fetchLatestRelease();
+    expect(result.version).toBe(`v${version}`);
+    expect(result.assets.androidApk).toContain(
+      "DuskLin/multica/releases/download",
+    );
+    expect(fetchMock.mock.calls[0]?.[0]).toContain("repos/DuskLin/multica/");
+  });
+
+  it("never falls back to upstream or incomplete assets for a local channel", async () => {
+    vi.stubEnv("MULTICA_RELEASE_REPOSITORY", "DuskLin/multica");
+    vi.stubEnv("MULTICA_RELEASE_CHANNEL", "local");
+    mockFetchWithReleases([
+      releasePayload({ tag: "v0.6.4", assets: completeAssets("0.6.4") }),
+      releasePayload({
+        tag: "v0.6.4-local.1",
+        prerelease: true,
+        assets: macOnlyAssets("0.6.4-local.1"),
+      }),
+    ]);
+    expect((await fetchLatestRelease()).version).toBeNull();
+  });
+
+  it("degrades safely on malformed release data", async () => {
+    mockFetchWithReleases([
+      {
+        tag_name: "v0.6.4",
+        assets: [{ name: 42, browser_download_url: "javascript:alert(1)" }],
+      },
+    ]);
+    expect((await fetchLatestRelease()).assets).toEqual({});
+  });
   it("uses the latest release when its desktop assets are complete", async () => {
     mockFetchWithReleases([
       releasePayload({ tag: "v0.2.14", assets: completeAssets("0.2.14") }),
@@ -146,9 +196,9 @@ describe("fetchLatestRelease", () => {
   });
 
   it("returns an empty release shape when the API errors", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response("rate limited", { status: 403 }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response("rate limited", { status: 403 }));
     vi.stubGlobal("fetch", fetchMock);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 

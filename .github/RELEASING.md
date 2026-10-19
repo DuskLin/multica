@@ -41,27 +41,58 @@ unresolved reachable vulnerability.
 Every Go binary retains its compiler version in the standard Go build metadata;
 use `go version -m <binary>` when auditing a downloaded release artifact.
 
-## Fork container releases
+## Local self-host releases
 
-For a private deployment of fork changes, tag the intended fork commit with a
-prerelease version such as `v0.6.3-local.1`. The same verification gate and native
-AMD64/ARM64 image jobs run, publishing `multica-backend` and `multica-web` under
-the lowercase fork owner at GHCR. Prerelease tags do not update `latest`.
-The upstream-only CLI, Homebrew, desktop, and Helm publishers are skipped.
+Fork releases use `.github/workflows/release-local.yml`. Push a fresh patch
+prerelease tag such as `v0.6.4-local.1` from the intended fork commit. The upstream
+Release workflow excludes `v*-local.*`; do not publish fork artifacts from a
+local workstation or move an existing release tag.
 
-The workflow uses its repository `GITHUB_TOKEN` with `packages: write`; no
-Docker Hub credential is required. New GHCR packages may be private. Make the
-intended deployment packages public, or configure a read-only package credential
-on the deployment host before pulling.
+Configure repository variables `MULTICA_DOCKER_IMAGE` (one Docker Hub repository,
+for example `jlliu0204/multica`) and `MULTICA_SELFHOST_URL` (the HTTPS platform
+origin). Configure encrypted Actions secrets `DOCKERHUB_USERNAME`,
+`DOCKERHUB_TOKEN`, `MULTICA_ANDROID_KEYSTORE_BASE64`, and
+`MULTICA_ANDROID_KEYSTORE_PASSWORD`. Android uses the `multica-local` key alias;
+preserve this key across releases so installed APKs can upgrade.
 
-Set `MULTICA_BACKEND_IMAGE=ghcr.io/<owner>/multica-backend`,
-`MULTICA_WEB_IMAGE=ghcr.io/<owner>/multica-web`, and `MULTICA_IMAGE_TAG` to the
-exact published tag in the server's `.env`, then run:
+The release gate runs Go tests with the race detector, `govulncheck`, and
+web/desktop/shared-view/mobile typechecks, lint and tests. CI then builds:
 
-```bash
-docker compose -f docker-compose.selfhost.yml pull
-docker compose -f docker-compose.selfhost.yml up -d --no-build
+- Linux AMD64 backend and web images for the cloud host, tagged
+  `backend-<tag>` and `web-<tag>` in the same Docker Hub repository.
+- macOS ARM64 and x64 DMG/ZIP installers with the matching daemon and bundled
+  platform URLs. Explicit `~/.multica/desktop.json` settings still take priority.
+- A signed Android release APK with the same version, package
+  `ai.multica.mobile.local`, and the workflow run number as its increasing
+  version code. Rerunning the same workflow retains the same version code.
+
+Only after all jobs succeed does CI publish the GitHub prerelease, installers,
+checksums and a manifest identifying the source commit, CI run and images. A
+published release is immutable from this workflow; fixes use a new tag.
+The macOS installers are internal, unnotarized builds; users allow the first
+launch in Privacy & Security and update manually from the download page.
+Their update repository is the fork, never the upstream release feed.
+
+On the cloud host, use a Compose override to select both exact component tags:
+
+```yaml
+services:
+  backend:
+    image: jlliu0204/multica:backend-v0.6.4-local.1
+  frontend:
+    image: jlliu0204/multica:web-v0.6.4-local.1
+    environment:
+      MULTICA_RELEASE_REPOSITORY: DuskLin/multica
+      MULTICA_RELEASE_CHANNEL: local
 ```
 
-Wait for the release workflow to succeed and check `/readyz`, the public web
-entrypoint, and daemon WebSocket routing before considering deployment complete.
+Pull these images, then run `docker compose ... up -d --no-build`. Preserve the
+existing environment and volumes. Record previous image references before
+updating so a rollback can select the prior pair. No source builds or agent
+execution belong on the cloud host.
+
+Acceptance requires a successful CI run, matching running image digests,
+HTTPS `/readyz`, login, daemon WebSocket routing, and `/download` links pointing
+to the complete matching fork release. Verify downloaded checksums and package
+metadata. CI packaging and static validation do not establish native UI or
+real-agent execution coverage; record those checks separately.

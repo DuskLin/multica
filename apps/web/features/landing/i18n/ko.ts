@@ -3435,7 +3435,9 @@ export function createKoDict(
       ],
     },
     download: {
+      localInstallHint: "macOS 내부용 빌드는 공증되지 않았습니다. 처음 실행할 때 시스템 설정 → 개인정보 보호 및 보안에서 허용하세요. 업데이트는 이 페이지에서 직접 다운로드하여 설치하세요.",
       hero: {
+        android: { title: "Multica for Android", sub: "Android APK", primary: "다운로드 (.apk)" },
         macArm64: {
           title: "macOS용 Multica",
           sub: "Apple Silicon · 데몬 포함, 별도 설정 없음",

@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
-import { fetchLatestRelease } from "@/features/landing/utils/github-release";
+import {
+  fetchLatestRelease,
+  getDownloadSource,
+} from "@/features/landing/utils/github-release";
 import { DownloadClient } from "./download-client";
 
 // Vercel ISR: the server fetch inside fetchLatestRelease carries
@@ -7,6 +10,7 @@ import { DownloadClient } from "./download-client";
 // one request per region per 5 minutes. Page-level revalidate mirrors
 // that window so the first paint also refreshes every 5 minutes.
 export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Download Multica",
@@ -25,5 +29,5 @@ export const metadata: Metadata = {
 
 export default async function DownloadPage() {
   const release = await fetchLatestRelease();
-  return <DownloadClient release={release} />;
+  return <DownloadClient release={release} source={getDownloadSource()} />;
 }

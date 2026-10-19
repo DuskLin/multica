@@ -29,6 +29,21 @@ vi.mock("../../i18n", () => ({
 }));
 
 describe("AllPlatforms", () => {
+  it("shows only fork Android and macOS packages in the local channel", () => {
+    render(
+      <AllPlatforms
+        local
+        assets={{ androidApk: "https://downloads.test/android.apk" }}
+        fallbackHref="https://github.com/DuskLin/multica/releases"
+      />,
+    );
+    expect(screen.getByRole("link", { name: "APK" })).toHaveAttribute(
+      "href",
+      "https://downloads.test/android.apk",
+    );
+    expect(screen.queryByText("Windows · x64")).not.toBeInTheDocument();
+    expect(screen.queryByText("Linux · x64")).not.toBeInTheDocument();
+  });
   it("lists Intel macOS downloads separately from Apple Silicon", () => {
     render(
       <AllPlatforms
@@ -45,13 +60,11 @@ describe("AllPlatforms", () => {
     const intelLabel = screen.getByText("macOS · Intel");
     const intelRow = intelLabel.parentElement?.parentElement;
     expect(intelRow).not.toBeNull();
-    expect(within(intelRow!).getByRole("link", { name: ".dmg" })).toHaveAttribute(
-      "href",
-      "https://downloads.test/mac-x64.dmg",
-    );
-    expect(within(intelRow!).getByRole("link", { name: ".zip" })).toHaveAttribute(
-      "href",
-      "https://downloads.test/mac-x64.zip",
-    );
+    expect(
+      within(intelRow!).getByRole("link", { name: ".dmg" }),
+    ).toHaveAttribute("href", "https://downloads.test/mac-x64.dmg");
+    expect(
+      within(intelRow!).getByRole("link", { name: ".zip" }),
+    ).toHaveAttribute("href", "https://downloads.test/mac-x64.zip");
   });
 });

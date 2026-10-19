@@ -172,7 +172,9 @@ export type LandingDict = {
     }[];
   };
   download: {
+    localInstallHint: string;
     hero: {
+      android: { title: string; sub: string; primary: string };
       macArm64: {
         title: string;
         sub: string;

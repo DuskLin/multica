@@ -13,6 +13,18 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const env = process.env.APP_ENV ?? "development";
   const isProd = env === "production";
   const isStaging = env === "staging";
+  const releaseVersion = process.env.MULTICA_RELEASE_VERSION;
+  const versionCode = Number(process.env.MULTICA_ANDROID_VERSION_CODE ?? "1");
+  if (releaseVersion && !/^\d+\.\d+\.\d+-local\.\d+$/.test(releaseVersion)) {
+    throw new Error("Invalid MULTICA_RELEASE_VERSION");
+  }
+  if (
+    !Number.isSafeInteger(versionCode) ||
+    versionCode < 1 ||
+    versionCode > 2100000000
+  ) {
+    throw new Error("Invalid MULTICA_ANDROID_VERSION_CODE");
+  }
 
   return {
     ...config,
@@ -22,7 +34,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         ? "Multica (Staging)"
         : "Multica (Dev)",
     slug: "multica-mobile",
-    version: "0.1.0",
+    version: releaseVersion ?? "0.1.0",
     orientation: "portrait",
     userInterfaceStyle: "automatic",
     scheme: "multica",
@@ -32,6 +44,16 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     // is the white ring from #6995. Expo prebuild generates every required iOS
     // icon size from this single PNG.
     icon: "./assets/icon.png",
+    android: {
+      package: releaseVersion
+        ? "ai.multica.mobile.local"
+        : isProd
+          ? "ai.multica.mobile"
+          : isStaging
+            ? "ai.multica.mobile.staging"
+            : "ai.multica.mobile.dev",
+      versionCode,
+    },
     ios: {
       // Expo keeps the top-level portrait policy for iPhone while adding all
       // iPad orientations required for multitasking when tablet support is on.
@@ -59,7 +81,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       bundleIdentifier: isProd
         ? (process.env.EXPO_BUNDLE_IDENTIFIER_PROD ?? "ai.multica.mobile")
         : isStaging
-          ? (process.env.EXPO_BUNDLE_IDENTIFIER_STAGING ?? "ai.multica.mobile.staging")
+          ? (process.env.EXPO_BUNDLE_IDENTIFIER_STAGING ??
+            "ai.multica.mobile.staging")
           : (process.env.EXPO_BUNDLE_IDENTIFIER_DEV ?? "ai.multica.mobile.dev"),
     },
     plugins: [

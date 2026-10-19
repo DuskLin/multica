@@ -3,6 +3,20 @@ import { createEnDict } from "../../i18n/en";
 import { resolveContent } from "./hero";
 
 describe("resolveContent", () => {
+  it("offers the fork APK to Android clients", () => {
+    expect(
+      resolveContent(
+        { os: "android", arch: "arm64", archConfident: true },
+        { androidApk: "https://downloads.test/android.apk" },
+        false,
+        createEnDict(true, "/docs").download.hero,
+      ).primary,
+    ).toEqual({
+      href: "https://downloads.test/android.apk",
+      label: "Download (.apk)",
+      disabled: false,
+    });
+  });
   it("links confidently detected Intel Macs to the x64 installers", () => {
     const content = resolveContent(
       { os: "mac", arch: "x64", archConfident: true },

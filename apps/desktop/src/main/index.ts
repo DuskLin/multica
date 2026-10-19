@@ -627,6 +627,7 @@ if (!gotTheLock) {
 
     runtimeConfigResult = await loadRuntimeConfig({
       isDev: is.dev,
+      bundledConfigPath: join(app.getAppPath(), "resources", "desktop-defaults.json"),
       // electron-vite exposes VITE_* on import.meta.env for the main process;
       // keep dev URL overrides on the same source the renderer used before
       // runtime config moved endpoint resolution into main/preload.
@@ -839,7 +840,14 @@ if (!gotTheLock) {
     desktopInitialized = true;
     createWindow();
 
-    setupAutoUpdater(() => mainWindow);
+    setupAutoUpdater(() => mainWindow, {
+      manualDownloadUrl:
+        process.platform === "darwin" &&
+        /-local\.\d+$/.test(app.getVersion()) &&
+        runtimeConfigResult.ok
+          ? `${runtimeConfigResult.config.appUrl}/download`
+          : undefined,
+    });
     setupDaemonManager(() => mainWindow);
     setupLocalDirectory(() => mainWindow);
 
