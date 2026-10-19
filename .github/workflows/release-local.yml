@@ -229,6 +229,17 @@ jobs:
           unzip -p "$apk" assets/NOTICE | cmp NOTICE -
           unzip -p "$apk" assets/index.android.bundle > "$RUNNER_TEMP/mobile.bundle"
           grep -aFq "$EXPO_PUBLIC_API_URL" "$RUNNER_TEMP/mobile.bundle"
+      - name: Enable emulator acceleration
+        run: sudo chown "$(id -un)" /dev/kvm
+      - name: Verify signed APK startup
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          ram-size: 2048M
+          disk-size: 2048M
+          script: bash apps/mobile/scripts/smoke-release-android.sh "release-assets/multica-mobile-${MULTICA_RELEASE_VERSION}-android.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: local-android

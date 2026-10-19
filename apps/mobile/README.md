@@ -54,6 +54,19 @@ Everything below is for app developers — you can ignore the rest if you only w
 
 Bundle id and display name switch on `APP_ENV` (see `app.config.ts`), so Dev / Staging / Production variants can coexist on the same device or simulator.
 
+### Android native dependency and release checks
+
+The mobile patch for `react-native-shiki-engine` replaces its floating `fbjni:+`
+dependency with React Native 0.86's `fbjni:0.7.0`. Newer fbjni binaries require
+C++ runtime symbols absent from the NDK 27 runtime bundled by this React Native
+version. Revisit the patch when upgrading React Native or the Shiki engine.
+
+Fork release CI installs the signed APK on an Android emulator and runs
+`scripts/smoke-release-android.sh` before publication. To repeat the startup check
+on a dedicated local emulator, set `ANDROID_SERIAL` and pass the APK path to the
+script. Use `MULTICA_ADB` when `adb` is not on `PATH`. This does not verify login,
+authenticated navigation, or real-device behavior.
+
 ### Regenerating iOS after the scene lifecycle migration
 
 The app uses Expo SDK 57's scene lifecycle support for builds linked against
