@@ -65,6 +65,8 @@ web/desktop/shared-view/mobile typechecks, lint and tests. CI then builds:
 - A signed Android release APK with the same version, package
   `ai.multica.mobile.local`, and the workflow run number as its increasing
   version code. Rerunning the same workflow retains the same version code.
+  The signed APK is installed and launched on an Android emulator before upload;
+  startup crashes fail the release gate.
 
 Only after all jobs succeed does CI publish the GitHub prerelease, installers,
 checksums and a manifest identifying the source commit, CI run and images. A

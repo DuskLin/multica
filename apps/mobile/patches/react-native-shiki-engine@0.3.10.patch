@@ -1,0 +1,14 @@
+diff --git a/android/build.gradle b/android/build.gradle
+index 043a64f2c20c1c129eb8022c886bd34640eff22d..7129a01dce29411a8d869ef7b25a5e952e449595 100644
+--- a/android/build.gradle
++++ b/android/build.gradle
+@@ -149,7 +149,8 @@ dependencies {
+   //noinspection GradleDynamicVersion
+   implementation "com.facebook.react:react-native:+"
+   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+-  implementation "com.facebook.fbjni:fbjni:+"
++  // Match React Native 0.86's NDK 27 C++ runtime.
++  implementation "com.facebook.fbjni:fbjni:0.7.0"
+ }
+ 
+ if (isNewArchitectureEnabled()) {
