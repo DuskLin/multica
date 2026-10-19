@@ -3243,6 +3243,83 @@ func TestExecuteAndDrain_ContextCancelled_FlushesPendingTranscript(t *testing.T)
 	}
 }
 
+func TestExecuteAndDrain_CancellationAfterResultHandoff(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		authoritative bool
+		result        agent.Result
+	}{
+		{name: "abort", result: agent.Result{Status: "aborted", Error: "execution cancelled"}},
+		{name: "authoritative_completion", authoritative: true, result: agent.Result{Status: "completed", Output: "done"}},
+		{name: "legacy_completion", result: agent.Result{Status: "completed", Output: "done"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			flushing := make(chan struct{})
+			releaseFlush := make(chan struct{})
+			var started, released sync.Once
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if strings.HasSuffix(r.URL.Path, "/messages") {
+					started.Do(func() { close(flushing) })
+					<-releaseFlush
+				}
+				w.WriteHeader(http.StatusOK)
+			}))
+			t.Cleanup(srv.Close)
+			t.Cleanup(func() { released.Do(func() { close(releaseFlush) }) })
+			d := &Daemon{client: NewClient(srv.URL), logger: slog.Default()}
+			messages := make(chan agent.Message, 1)
+			messages <- agent.Message{Type: agent.MessageText, Content: "pending tail"}
+			close(messages)
+			results := make(chan agent.Result)
+			backend := sessionBackend{session: &agent.Session{
+				Messages: messages, Result: results,
+				TerminalObserved: func() bool { return tc.authoritative },
+			}}
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			type outcome struct {
+				result agent.Result
+				err    error
+			}
+			done := make(chan outcome, 1)
+			go func() {
+				result, _, err := d.executeAndDrain(ctx, backend, "p", agent.ExecOptions{}, slog.Default(), "task-handoff-cancel", "", new(atomic.Int32))
+				done <- outcome{result, err}
+			}()
+			select {
+			case <-flushing:
+			case <-time.After(5 * time.Second):
+				t.Fatal("transcript flush did not start")
+			}
+			// The unbuffered handoff selects the result branch while the closed
+			// message stream is still flushing. Cancel before that flush returns.
+			select {
+			case results <- tc.result:
+			case <-time.After(5 * time.Second):
+				t.Fatal("result was not accepted")
+			}
+			cancel()
+			released.Do(func() { close(releaseFlush) })
+			select {
+			case got := <-done:
+				if got.err != nil {
+					t.Fatal(got.err)
+				}
+				if tc.result.Status == "completed" {
+					if got.result.Status != "completed" || got.result.Output != "done" {
+						t.Fatalf("completed terminal was reclassified: %+v", got.result)
+					}
+				} else if got.result.Status != "cancelled" || !strings.Contains(got.result.Error, "task cancelled by upstream context") {
+					t.Fatalf("result lost upstream cancellation: %+v", got.result)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("execution did not finish after cancellation")
+			}
+		})
+	}
+}
+
 func TestExecuteAndDrain_NoRetryAfterToolsExecuted(t *testing.T) {
 	t.Parallel()
 
