@@ -33,6 +33,23 @@ jobs:
           [[ "$IMAGE" =~ ^[a-z0-9_-]+/[a-z0-9_.-]+$ ]]
           [[ "$SELFHOST_URL" =~ ^https://[a-zA-Z0-9.-]+$ ]]
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+      - name: Refuse an already published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          status=$(curl --silent --show-error --retry 2 \
+            --output "$RUNNER_TEMP/existing-release.json" --write-out '%{http_code}' \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/tags/$TAG")
+          case "$status" in
+            404) ;;
+            200) jq --exit-status '.draft == true' "$RUNNER_TEMP/existing-release.json" \
+                   || { echo '::error::This release is already public; use a new tag.'; exit 1; } ;;
+            *) echo "::error::Cannot verify release state (HTTP $status)."; exit 1 ;;
+          esac
       - uses: actions/setup-go@v5
         with:
           go-version: "~1.26.9"
@@ -95,7 +112,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=local-${{ matrix.component }}
 
   macos:
-    needs: [verify, frontend]
+    needs: verify
     runs-on: macos-latest
     timeout-minutes: 45
     strategy:
@@ -134,7 +151,7 @@ jobs:
           repo="${RELEASE_REPOSITORY#*/}"
           node scripts/package.mjs --mac --${{ matrix.arch }} --publish never \
             "-c.publish.owner=$owner" "-c.publish.repo=$repo" \
-            -c.publish.channel=local -c.publish.releaseType=prerelease
+            -c.publish.releaseType=prerelease
       - name: Verify packaged deployment and architecture
         env:
           VERSION: ${{ needs.verify.outputs.version }}
@@ -151,7 +168,7 @@ jobs:
           retention-days: 14
 
   android:
-    needs: [verify, frontend]
+    needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -172,6 +189,9 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: "false"
       - uses: gradle/actions/setup-gradle@v4
       - run: pnpm install --frozen-lockfile
       - name: Generate Android project
@@ -207,7 +227,7 @@ jobs:
           retention-days: 14
 
   publish:
-    needs: [verify, images, macos, android]
+    needs: [verify, frontend, images, macos, android]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
