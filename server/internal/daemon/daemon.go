@@ -9881,6 +9881,11 @@ func (d *Daemon) executeAndDrain(ctx context.Context, backend agent.Backend, pro
 			if result.Error == "" {
 				result.Error = idleWatchdogReason(time.Duration(idleWatchdogThreshold.Load()))
 			}
+		} else if result.Status == "aborted" && errors.Is(drainCtx.Err(), context.Canceled) && !terminalObserved() {
+			// An abort caused by upstream cancellation can win the result select.
+			// Keep the cancellation classification without replacing completed runs.
+			result.Status = "cancelled"
+			result.Error = "task cancelled by upstream context (server cancel or daemon shutdown)"
 		}
 		return result, toolCount.Load(), nil
 	case <-drainCtx.Done():
