@@ -9,9 +9,32 @@ import createConfig from "./app.config";
 afterEach(() => vi.unstubAllEnvs());
 
 describe("iOS scene lifecycle configuration", () => {
+  it("binds fork Android identity and version to the release", () => {
+    vi.stubEnv("APP_ENV", "production");
+    vi.stubEnv("MULTICA_RELEASE_VERSION", "0.6.4-local.1");
+    vi.stubEnv("MULTICA_ANDROID_VERSION_CODE", "12");
+    const config = createConfig({ config: {} } as ConfigContext);
+    expect(config.version).toBe("0.6.4-local.1");
+    expect(config.android).toMatchObject({
+      package: "ai.multica.mobile.local",
+      versionCode: 12,
+    });
+  });
+
+  it.each(["0", "NaN", "1.5", "2100000001"])(
+    "rejects invalid Android version code %s",
+    (value) => {
+      vi.stubEnv("MULTICA_ANDROID_VERSION_CODE", value);
+      expect(() => createConfig({ config: {} } as ConfigContext)).toThrow(
+        "Invalid MULTICA_ANDROID_VERSION_CODE",
+      );
+    },
+  );
   it("resolves native presenters from the foregrounded scene", () => {
     const requireFromTest = createRequire(import.meta.url);
-    const requireFromExpo = createRequire(requireFromTest.resolve("expo/package.json"));
+    const requireFromExpo = createRequire(
+      requireFromTest.resolve("expo/package.json"),
+    );
     const modulesCoreRoot = dirname(
       requireFromExpo.resolve("expo-modules-core/package.json"),
     );
@@ -31,21 +54,24 @@ describe("iOS scene lifecycle configuration", () => {
     ["development", "Multica (Dev)", "ai.multica.mobile.dev"],
     ["staging", "Multica (Staging)", "ai.multica.mobile.staging"],
     ["production", "Multica", "ai.multica.mobile"],
-  ])("enables scene support for %s without changing app identity", (env, name, bundleIdentifier) => {
-    vi.stubEnv("APP_ENV", env);
-    vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_DEV", undefined);
-    vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_STAGING", undefined);
-    vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_PROD", undefined);
-    const config = createConfig({ config: {} } as ConfigContext);
+  ])(
+    "enables scene support for %s without changing app identity",
+    (env, name, bundleIdentifier) => {
+      vi.stubEnv("APP_ENV", env);
+      vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_DEV", undefined);
+      vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_STAGING", undefined);
+      vi.stubEnv("EXPO_BUNDLE_IDENTIFIER_PROD", undefined);
+      const config = createConfig({ config: {} } as ConfigContext);
 
-    expect(config.name).toBe(name);
-    expect(config.ios?.bundleIdentifier).toBe(bundleIdentifier);
-    expect(config.scheme).toBe("multica");
-    expect(config.plugins).toContainEqual([
-      "expo-build-properties",
-      { ios: { buildReactNativeFromSource: true, enableSceneSupport: true } },
-    ]);
-  });
+      expect(config.name).toBe(name);
+      expect(config.ios?.bundleIdentifier).toBe(bundleIdentifier);
+      expect(config.scheme).toBe("multica");
+      expect(config.plugins).toContainEqual([
+        "expo-build-properties",
+        { ios: { buildReactNativeFromSource: true, enableSceneSupport: true } },
+      ]);
+    },
+  );
 
   it.each([
     ["development", "com.example.multica.dev"],
@@ -59,7 +85,10 @@ describe("iOS scene lifecycle configuration", () => {
     vi.stubEnv("EXPO_APPLE_TEAM_ID", "ABCDE12345");
 
     const config = createConfig({ config: {} } as ConfigContext);
-    expect(config.ios).toMatchObject({ bundleIdentifier, appleTeamId: "ABCDE12345" });
+    expect(config.ios).toMatchObject({
+      bundleIdentifier,
+      appleTeamId: "ABCDE12345",
+    });
     expect(config.scheme).toBe("multica");
   });
 });

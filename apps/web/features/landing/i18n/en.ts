@@ -3930,7 +3930,9 @@ export function createEnDict(
     ],
   },
   download: {
+    localInstallHint: "Internal macOS build, not notarized. Allow the first launch in System Settings → Privacy & Security. Install updates manually from this page.",
     hero: {
+      android: { title: "Multica for Android", sub: "Android APK", primary: "Download (.apk)" },
       macArm64: {
         title: "Multica for macOS",
         sub: "Apple Silicon · bundled daemon, zero setup",

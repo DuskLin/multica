@@ -18,11 +18,7 @@ interface Props {
  * placeholder (SEO + flash-before-hydration), then swaps to a
  * platform-specific CTA once the client detection resolves.
  */
-export function DownloadHero({
-  detected,
-  assets,
-  versionUnavailable,
-}: Props) {
+export function DownloadHero({ detected, assets, versionUnavailable }: Props) {
   const { t } = useLocale();
   const d = t.download.hero;
 
@@ -106,6 +102,17 @@ export function resolveContent(
   // also catches `os === "unknown"`.
   if (!detected || detected.os === "unknown") {
     return { title: d.unknown.title, sub: d.unknown.sub };
+  }
+
+  if (detected.os === "android") {
+    return {
+      title: d.android.title,
+      sub: d.android.sub,
+      primary: assets.androidApk
+        ? { href: assets.androidApk, label: d.android.primary, disabled: false }
+        : undefined,
+      alt: { href: "#all-platforms", label: d.linux.altFormats },
+    };
   }
 
   if (detected.os === "mac") {

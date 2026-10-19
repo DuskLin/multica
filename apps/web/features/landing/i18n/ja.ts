@@ -3414,7 +3414,9 @@ export function createJaDict(
       ],
     },
     download: {
+      localInstallHint: "macOS 社内用ビルドは未公証です。初回起動は「システム設定 → プライバシーとセキュリティ」で許可してください。更新はこのページから手動でインストールしてください。",
       hero: {
+        android: { title: "Multica for Android", sub: "Android APK", primary: "ダウンロード (.apk)" },
         macArm64: {
           title: "macOS 版 Multica",
           sub: "Apple Silicon · デーモン同梱、設定不要",

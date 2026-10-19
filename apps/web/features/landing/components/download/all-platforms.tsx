@@ -11,6 +11,7 @@ interface Props {
   /** Link to GitHub releases page, used when individual asset URLs
    *  couldn't be resolved (API down / parse failure). */
   fallbackHref: string;
+  local?: boolean;
 }
 
 /**
@@ -18,10 +19,7 @@ interface Props {
  * regardless of which platform the Hero resolved to — lets power
  * users grab any build directly.
  */
-export function AllPlatforms({
-  assets,
-  fallbackHref,
-}: Props) {
+export function AllPlatforms({ assets, fallbackHref, local = false }: Props) {
   const { t } = useLocale();
   const d = t.download.allPlatforms;
 
@@ -66,72 +64,93 @@ export function AllPlatforms({
             ]}
             unavailable={d.unavailable}
           />
-          <Row
-            icon={<WindowsIcon className="text-[#0a0d12]" />}
-            label={d.winX64Label}
-            formats={[
-              {
-                label: d.formatExe,
-                href: assets.winX64Exe,
-              },
-            ]}
-            unavailable={d.unavailable}
-          />
-          <Row
-            icon={<WindowsIcon className="text-[#0a0d12]" />}
-            label={d.winArm64Label}
-            formats={[
-              {
-                label: d.formatExe,
-                href: assets.winArm64Exe,
-              },
-            ]}
-            unavailable={d.unavailable}
-          />
-          <Row
-            icon={<LinuxIcon className="text-[#0a0d12]" />}
-            label={d.linuxX64Label}
-            formats={[
-              {
-                label: d.formatAppImage,
-                href: assets.linuxAmd64AppImage,
-              },
-              {
-                label: d.formatDeb,
-                href: assets.linuxAmd64Deb,
-              },
-              {
-                label: d.formatRpm,
-                href: assets.linuxAmd64Rpm,
-              },
-            ]}
-            unavailable={d.unavailable}
-          />
-          <Row
-            icon={<LinuxIcon className="text-[#0a0d12]" />}
-            label={d.linuxArm64Label}
-            formats={[
-              {
-                label: d.formatAppImage,
-                href: assets.linuxArm64AppImage,
-              },
-              {
-                label: d.formatDeb,
-                href: assets.linuxArm64Deb,
-              },
-              {
-                label: d.formatRpm,
-                href: assets.linuxArm64Rpm,
-              },
-            ]}
-            unavailable={d.unavailable}
-            isLast
-          />
+          {local && (
+            <Row
+              icon={<span aria-hidden>↓</span>}
+              label="Android"
+              formats={[{ label: "APK", href: assets.androidApk }]}
+              unavailable={d.unavailable}
+              isLast
+            />
+          )}
+          {!local && (
+            <>
+              <Row
+                icon={<WindowsIcon className="text-[#0a0d12]" />}
+                label={d.winX64Label}
+                formats={[
+                  {
+                    label: d.formatExe,
+                    href: assets.winX64Exe,
+                  },
+                ]}
+                unavailable={d.unavailable}
+              />
+              <Row
+                icon={<WindowsIcon className="text-[#0a0d12]" />}
+                label={d.winArm64Label}
+                formats={[
+                  {
+                    label: d.formatExe,
+                    href: assets.winArm64Exe,
+                  },
+                ]}
+                unavailable={d.unavailable}
+              />
+              <Row
+                icon={<LinuxIcon className="text-[#0a0d12]" />}
+                label={d.linuxX64Label}
+                formats={[
+                  {
+                    label: d.formatAppImage,
+                    href: assets.linuxAmd64AppImage,
+                  },
+                  {
+                    label: d.formatDeb,
+                    href: assets.linuxAmd64Deb,
+                  },
+                  {
+                    label: d.formatRpm,
+                    href: assets.linuxAmd64Rpm,
+                  },
+                ]}
+                unavailable={d.unavailable}
+              />
+              <Row
+                icon={<LinuxIcon className="text-[#0a0d12]" />}
+                label={d.linuxArm64Label}
+                formats={[
+                  {
+                    label: d.formatAppImage,
+                    href: assets.linuxArm64AppImage,
+                  },
+                  {
+                    label: d.formatDeb,
+                    href: assets.linuxArm64Deb,
+                  },
+                  {
+                    label: d.formatRpm,
+                    href: assets.linuxArm64Rpm,
+                  },
+                ]}
+                unavailable={d.unavailable}
+                isLast
+              />
+            </>
+          )}
         </div>
+
+        {local && (
+          <p className="mt-6 text-label text-[#0a0d12]/60">
+            {t.download.localInstallHint}
+          </p>
+        )}
 
         {/* Some row is missing its link — surface the GitHub fallback so
             users on an orphaned row still have a way out. */}
-        {!hasCompleteAssetSet(assets) ? (
+        {!(local
+          ? assets.androidApk && assets.macArm64Dmg && assets.macX64Dmg
+          : hasCompleteAssetSet(assets)) ? (
           <p className="mt-6 text-label text-[#0a0d12]/60">
             <Link
               href={fallbackHref}

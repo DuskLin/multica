@@ -1,0 +1,243 @@
+name: Local Release
+
+on:
+  push:
+    tags: ["v*-local.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: local-release
+  cancel-in-progress: false
+
+env:
+  IMAGE: ${{ vars.MULTICA_DOCKER_IMAGE }}
+  SELFHOST_URL: ${{ vars.MULTICA_SELFHOST_URL }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate release configuration
+        id: meta
+        env:
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-local\.[0-9]+$ ]]
+          [[ "$IMAGE" =~ ^[a-z0-9_-]+/[a-z0-9_.-]+$ ]]
+          [[ "$SELFHOST_URL" =~ ^https://[a-zA-Z0-9.-]+$ ]]
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "~1.26.9"
+          cache-dependency-path: server/go.sum
+      - run: bash scripts/test-go.test.sh
+      - run: bash scripts/test-go.sh --race
+      - name: Scan Go vulnerabilities
+        working-directory: server
+        run: go tool govulncheck ./...
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec turbo typecheck lint test --concurrency=3 --filter=@multica/web --filter=@multica/desktop --filter=@multica/views --filter=@multica/mobile
+
+  images:
+    needs: [verify, frontend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: backend
+            dockerfile: Dockerfile
+          - component: web
+            dockerfile: Dockerfile.web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          pull: true
+          tags: ${{ env.IMAGE }}:${{ matrix.component }}-${{ github.ref_name }}
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            COMMIT=${{ github.sha }}
+            NEXT_PUBLIC_APP_VERSION=${{ github.ref_name }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ github.ref_name }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha,scope=local-${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=local-${{ matrix.component }}
+
+  macos:
+    needs: [verify, frontend]
+    runs-on: macos-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [arm64, x64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "~1.26.9"
+          cache-dependency-path: server/go.sum
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Bundle deployment defaults
+        run: |
+          node --input-type=module -e '
+            import { mkdirSync, writeFileSync } from "node:fs";
+            mkdirSync("apps/desktop/resources", { recursive: true });
+            const origin = process.env.SELFHOST_URL;
+            writeFileSync("apps/desktop/resources/desktop-defaults.json", JSON.stringify({ schemaVersion: 1, apiUrl: origin, appUrl: origin, wsUrl: origin.replace("https:", "wss:") + "/ws" }));
+          '
+      - name: Package internal macOS installers
+        working-directory: apps/desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          RELEASE_REPOSITORY: ${{ github.repository }}
+        run: |
+          owner="${RELEASE_REPOSITORY%%/*}"
+          repo="${RELEASE_REPOSITORY#*/}"
+          node scripts/package.mjs --mac --${{ matrix.arch }} --publish never \
+            "-c.publish.owner=$owner" "-c.publish.repo=$repo" \
+            -c.publish.channel=local -c.publish.releaseType=prerelease
+      - name: Verify packaged deployment and architecture
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          python3 scripts/verify-local-macos.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: local-macos-${{ matrix.arch }}
+          path: |
+            apps/desktop/dist/*.dmg
+            apps/desktop/dist/*.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  android:
+    needs: [verify, frontend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      APP_ENV: production
+      MULTICA_RELEASE_VERSION: ${{ needs.verify.outputs.version }}
+      MULTICA_ANDROID_VERSION_CODE: ${{ github.run_number }}
+      EXPO_PUBLIC_API_URL: ${{ vars.MULTICA_SELFHOST_URL }}
+      EXPO_PUBLIC_WEB_URL: ${{ vars.MULTICA_SELFHOST_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - run: pnpm install --frozen-lockfile
+      - name: Generate Android project
+        working-directory: apps/mobile
+        run: pnpm exec expo prebuild --platform android --no-install
+      - name: Build release APK
+        working-directory: apps/mobile/android
+        run: ./gradlew :app:assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64
+      - name: Sign and verify APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.MULTICA_ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.MULTICA_ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          keyfile="$RUNNER_TEMP/multica-release.jks"
+          trap 'rm -f "$keyfile"' EXIT
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$keyfile"
+          build_tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          mkdir -p release-assets
+          apk="release-assets/multica-mobile-${MULTICA_RELEASE_VERSION}-android.apk"
+          "$build_tools/apksigner" sign --ks "$keyfile" --ks-key-alias multica-local \
+            --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
+            --out "$apk" apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          "$build_tools/apksigner" verify --verbose --print-certs "$apk"
+          "$build_tools/aapt" dump badging "$apk" | head -1
+          "$build_tools/aapt" dump badging "$apk" | grep -F "versionName='${MULTICA_RELEASE_VERSION}'"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: local-android
+          path: release-assets/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: [verify, images, macos, android]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: local-*
+          path: release-assets
+          merge-multiple: true
+      - name: Verify complete release and publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          cd release-assets
+          for arch in arm64 x64; do
+            test -s "multica-desktop-${VERSION}-mac-${arch}.dmg"
+            test -s "multica-desktop-${VERSION}-mac-${arch}.zip"
+          done
+          test -s "multica-mobile-${VERSION}-android.apk"
+          sha256sum *.dmg *.zip *.apk > checksums.txt
+          printf 'Source: %s\nCI: https://github.com/%s/actions/runs/%s\nBackend: %s:backend-%s\nWeb: %s:web-%s\n' \
+            "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$IMAGE" "$TAG" "$IMAGE" "$TAG" > release-manifest.txt
+          gh release view "$TAG" --json isDraft > "$RUNNER_TEMP/release.json" || gh release create "$TAG" --verify-tag --draft --prerelease --title "$TAG" --notes-file ../.github/LOCAL_RELEASE_NOTES.md
+          if test -s "$RUNNER_TEMP/release.json"; then
+            test "$(jq -r .isDraft "$RUNNER_TEMP/release.json")" = true || { echo 'Refusing to replace published release assets'; exit 1; }
+          fi
+          gh release upload "$TAG" ./*.dmg ./*.zip ./*.apk checksums.txt release-manifest.txt --clobber
+          gh release edit "$TAG" --draft=false --prerelease --latest=false

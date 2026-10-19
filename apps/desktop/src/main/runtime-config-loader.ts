@@ -14,6 +14,7 @@ export async function loadRuntimeConfig(options: {
   isDev: boolean;
   env: RuntimeConfigEnv;
   configPath?: string;
+  bundledConfigPath?: string;
 }): Promise<RuntimeConfigResult> {
   if (options.isDev) {
     try {
@@ -29,6 +30,21 @@ export async function loadRuntimeConfig(options: {
     return { ok: true, config: parseRuntimeConfig(raw) };
   } catch (err) {
     if (isMissingFileError(err)) {
+      if (options.bundledConfigPath) {
+        try {
+          const raw = await readFile(options.bundledConfigPath, "utf-8");
+          return { ok: true, config: parseRuntimeConfig(raw) };
+        } catch (bundledError) {
+          if (!isMissingFileError(bundledError)) {
+            return {
+              ok: false,
+              error: {
+                message: `Invalid ${options.bundledConfigPath}: ${errorMessage(bundledError)}`,
+              },
+            };
+          }
+        }
+      }
       return { ok: true, config: { ...DEFAULT_RUNTIME_CONFIG } };
     }
     return {
@@ -47,9 +63,9 @@ export function desktopConfigPath(): string {
 function isMissingFileError(err: unknown): boolean {
   return Boolean(
     err &&
-      typeof err === "object" &&
-      "code" in err &&
-      (err as NodeJS.ErrnoException).code === "ENOENT",
+    typeof err === "object" &&
+    "code" in err &&
+    (err as NodeJS.ErrnoException).code === "ENOENT",
   );
 }
 

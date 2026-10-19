@@ -3910,7 +3910,9 @@ export function createZhDict(
     ],
   },
   download: {
+    localInstallHint: "macOS 内部安装包尚未公证。首次打开请在「系统设置 → 隐私与安全性」中允许，后续更新需从本页手动下载安装。",
     hero: {
+      android: { title: "Multica for Android", sub: "Android APK", primary: "下载 (.apk)" },
       macArm64: {
         title: "Multica for macOS",
         sub: "Apple Silicon · 内置 daemon，无需配置",

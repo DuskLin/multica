@@ -230,6 +230,8 @@ services:
       DOCS_URL: ${DOCS_URL:-}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
       NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-}
+      MULTICA_RELEASE_REPOSITORY: ${MULTICA_RELEASE_REPOSITORY:-multica-ai/multica}
+      MULTICA_RELEASE_CHANNEL: ${MULTICA_RELEASE_CHANNEL:-stable}
     restart: unless-stopped
 
 volumes:

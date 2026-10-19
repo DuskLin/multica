@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { parseWithFallback } from "@multica/core/api/schema";
 import {
   hasCompleteAssetSet,
   parseReleaseAssets,
@@ -32,23 +34,41 @@ export interface LatestRelease {
   assets: DownloadAssets;
 }
 
-// Five candidates tolerates four consecutive incomplete releases before
-// the page has to fall back to showing the newest one as-is. Releases
-// ship roughly daily, so that is days of head room — while staying one
-// cheap request.
-const GITHUB_RELEASES_URL =
-  "https://api.github.com/repos/multica-ai/multica/releases?per_page=5";
+// Resolve at request time so one image can serve different deployments.
+export function getDownloadSource() {
+  const repository =
+    process.env.MULTICA_RELEASE_REPOSITORY || "multica-ai/multica";
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
+    throw new Error("Invalid MULTICA_RELEASE_REPOSITORY");
+  }
+  return {
+    repository,
+    releasesUrl: `https://github.com/${repository}/releases`,
+    local: process.env.MULTICA_RELEASE_CHANNEL === "local",
+  };
+}
 
 const REVALIDATE_SECONDS = 300;
 
-interface GitHubReleasePayload {
-  tag_name?: string;
-  published_at?: string;
-  html_url?: string;
-  prerelease?: boolean;
-  draft?: boolean;
-  assets?: Array<{ name: string; browser_download_url: string }>;
-}
+const releaseSchema = z.object({
+  tag_name: z.string(),
+  published_at: z.string().nullable().optional(),
+  html_url: z.url().optional(),
+  prerelease: z.boolean().optional().default(false),
+  draft: z.boolean().optional().default(false),
+  assets: z
+    .array(
+      z.object({
+        name: z.string(),
+        browser_download_url: z
+          .url()
+          .refine((url) => url.startsWith("https://")),
+      }),
+    )
+    .optional()
+    .default([]),
+});
+type GitHubReleasePayload = z.infer<typeof releaseSchema>;
 
 export async function fetchLatestRelease(): Promise<LatestRelease> {
   const headers: Record<string, string> = {
@@ -67,21 +87,52 @@ export async function fetchLatestRelease(): Promise<LatestRelease> {
   }
 
   try {
-    const res = await fetch(GITHUB_RELEASES_URL, {
+    const source = getDownloadSource();
+    const endpoint = `https://api.github.com/repos/${source.repository}/releases?per_page=20`;
+    const res = await fetch(endpoint, {
       next: { revalidate: REVALIDATE_SECONDS },
       headers,
     });
     if (!res.ok) {
       throw new Error(`GitHub API responded ${res.status}`);
     }
-    const data = (await res.json()) as GitHubReleasePayload[];
+    const data = parseWithFallback<GitHubReleasePayload[]>(
+      await res.json(),
+      z.array(releaseSchema),
+      [],
+      { endpoint },
+    );
 
-    // Defensive filter — Multica doesn't publish prereleases or drafts
-    // today, but the endpoint returns them if that ever changes. A
-    // prerelease shadowing a stable version on /download would be a
-    // regression.
-    const stable = data.filter((r) => !r.prerelease && !r.draft);
-    const chosen = pickRelease(stable);
+    // Local deployments only offer completed fork prereleases. Upstream
+    // deployments retain their stable release policy.
+    const candidates = data.filter(
+      (r) =>
+        !r.draft &&
+        (source.local
+          ? /^v\d+\.\d+\.\d+-local\.\d+$/.test(r.tag_name)
+          : !r.prerelease),
+    );
+    const chosen = source.local
+      ? candidates
+          .map((release) => ({
+            release,
+            assets: parseReleaseAssets(
+              release.assets.filter((asset) =>
+                asset.browser_download_url.startsWith(
+                  `https://github.com/${source.repository}/releases/download/${release.tag_name}/`,
+                ),
+              ),
+            ),
+          }))
+          .find(
+            ({ assets }) =>
+              assets.androidApk &&
+              assets.macArm64Dmg &&
+              assets.macArm64Zip &&
+              assets.macX64Dmg &&
+              assets.macX64Zip,
+          )
+      : pickRelease(candidates);
     if (!chosen) {
       return emptyRelease();
     }
@@ -89,7 +140,9 @@ export async function fetchLatestRelease(): Promise<LatestRelease> {
     return {
       version: chosen.release.tag_name ?? null,
       publishedAt: chosen.release.published_at ?? null,
-      htmlUrl: chosen.release.html_url ?? null,
+      htmlUrl: source.local
+        ? `${source.releasesUrl}/tag/${chosen.release.tag_name}`
+        : (chosen.release.html_url ?? null),
       assets: chosen.assets,
     };
   } catch (err) {

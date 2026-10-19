@@ -52,10 +52,7 @@ vi.mock("electron", () => ({
   },
 }));
 
-import {
-  configureMacX64UpdateChannel,
-  setupAutoUpdater,
-} from "./updater";
+import { configureMacX64UpdateChannel, setupAutoUpdater } from "./updater";
 import { updaterPreferencesPath } from "./updater-preferences";
 
 describe("macOS x64 update channel", () => {
@@ -154,6 +151,24 @@ function makeWindowWithThrowingSend(error: Error) {
 }
 
 describe("setupAutoUpdater", () => {
+  it("keeps internal builds on manual downloads without polling an update feed", async () => {
+    setupAutoUpdater(() => null, {
+      manualDownloadUrl: "https://multica.example.com/download",
+    });
+    await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
+    expect(ctx.checkForUpdates).not.toHaveBeenCalled();
+    expect(await ctx.ipcHandlers.get("updater:get-preferences")?.()).toEqual({
+      automaticUpdates: false,
+    });
+    expect(await ctx.ipcHandlers.get("updater:check")?.()).toEqual({
+      ok: false,
+      error:
+        "Install updates manually from https://multica.example.com/download",
+    });
+    expect(() =>
+      ctx.ipcHandlers.get("updater:set-automatic-updates")?.({}, true),
+    ).toThrow("Install updates manually");
+  });
   beforeEach(() => {
     vi.useFakeTimers();
     ctx.userDataPath = mkdtempSync(join(tmpdir(), "multica-updater-test-"));
@@ -248,14 +263,18 @@ describe("setupAutoUpdater", () => {
   it("skips update progress when the BrowserWindow has already been destroyed", () => {
     setupAutoUpdater(() => makeDestroyedWindow());
 
-    expect(() => emitUpdater("download-progress", { percent: 42 })).not.toThrow();
+    expect(() =>
+      emitUpdater("download-progress", { percent: 42 }),
+    ).not.toThrow();
   });
 
   it("skips update progress when the BrowserWindow webContents has already been destroyed", () => {
     const { win, send } = makeWindowWithDestroyedWebContents();
     setupAutoUpdater(() => win);
 
-    expect(() => emitUpdater("download-progress", { percent: 42 })).not.toThrow();
+    expect(() =>
+      emitUpdater("download-progress", { percent: 42 }),
+    ).not.toThrow();
     expect(send).not.toHaveBeenCalled();
   });
 
@@ -265,7 +284,9 @@ describe("setupAutoUpdater", () => {
     );
     setupAutoUpdater(() => win);
 
-    expect(() => emitUpdater("download-progress", { percent: 42 })).not.toThrow();
+    expect(() =>
+      emitUpdater("download-progress", { percent: 42 }),
+    ).not.toThrow();
     expect(send).toHaveBeenCalledWith("updater:download-progress", {
       percent: 42,
     });

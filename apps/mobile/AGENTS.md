@@ -91,4 +91,5 @@ pnpm --filter @multica/mobile test
 - Root frontend checks exclude mobile. `.github/workflows/mobile-verify.yml` defines the current mobile CI scope; these checks do not build an IPA or verify native rendering.
 - For UI changes, verify the affected flow in the simulator/device, including themes, keyboard/scrolling, and navigation. For shared semantics or realtime changes, change the same data from web and confirm mobile catches up without manual refresh, including after reconnect.
 - Test parsing/transforms in the existing Vitest setup. Preserve `scripts/ios-run.test.sh` coverage when changing the native build wrapper.
+- Fork Android releases are built by the root `release-local.yml` workflow using `MULTICA_RELEASE_VERSION` and `MULTICA_ANDROID_VERSION_CODE`. Keep the fork signing key stable and the APK package separate from upstream.
 - Report which checks ran and which native/cross-client checks were unavailable. Do not claim visual or release verification from typecheck/unit tests alone.

@@ -15,10 +15,13 @@ import {
 } from "@/features/landing/utils/os-detect";
 import type { LatestRelease } from "@/features/landing/utils/github-release";
 
-const ALL_RELEASES_URL =
-  "https://github.com/multica-ai/multica/releases";
-
-export function DownloadClient({ release }: { release: LatestRelease }) {
+export function DownloadClient({
+  release,
+  source,
+}: {
+  release: LatestRelease;
+  source: { releasesUrl: string; local: boolean };
+}) {
   const [detected, setDetected] = useState<DetectResult | null>(null);
   const versionUnavailable = release.version === null;
 
@@ -33,7 +36,7 @@ export function DownloadClient({ release }: { release: LatestRelease }) {
     };
   }, []);
 
-  const releaseHtmlUrl = release.htmlUrl ?? ALL_RELEASES_URL;
+  const releaseHtmlUrl = release.htmlUrl ?? source.releasesUrl;
 
   return (
     <>
@@ -54,13 +57,15 @@ export function DownloadClient({ release }: { release: LatestRelease }) {
 
       <AllPlatforms
         assets={release.assets}
-        fallbackHref={ALL_RELEASES_URL}
+        fallbackHref={source.releasesUrl}
+        local={source.local}
       />
-      <CliSection />
-      <CloudSection />
+      {!source.local && <CliSection />}
+      {!source.local && <CloudSection />}
       <VersionInfoFooter
         version={release.version}
         releaseHtmlUrl={releaseHtmlUrl}
+        releasesUrl={source.releasesUrl}
       />
       <LandingFooter />
     </>
@@ -70,9 +75,11 @@ export function DownloadClient({ release }: { release: LatestRelease }) {
 function VersionInfoFooter({
   version,
   releaseHtmlUrl,
+  releasesUrl,
 }: {
   version: string | null;
   releaseHtmlUrl: string;
+  releasesUrl: string;
 }) {
   const { t } = useLocale();
   const d = t.download.footer;
@@ -82,9 +89,7 @@ function VersionInfoFooter({
       <div className="mx-auto flex max-w-[920px] flex-wrap items-center gap-x-6 gap-y-2 border-t border-[#0a0d12]/8 px-4 pt-8 text-label text-[#0a0d12]/60 sm:px-6 lg:px-8">
         {version ? (
           <>
-            <span>
-              {d.currentVersion.replace("{version}", version)}
-            </span>
+            <span>{d.currentVersion.replace("{version}", version)}</span>
             <span aria-hidden className="text-[#0a0d12]/25">
               ·
             </span>
@@ -109,7 +114,7 @@ function VersionInfoFooter({
           </>
         )}
         <Link
-          href={ALL_RELEASES_URL}
+          href={releasesUrl}
           className="underline decoration-[#0a0d12]/30 underline-offset-4 hover:text-[#0a0d12] hover:decoration-[#0a0d12]/70"
           target="_blank"
           rel="noreferrer"

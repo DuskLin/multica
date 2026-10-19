@@ -125,4 +125,5 @@ Workspace-scoped queries filter by `workspace_id`; membership gates access and `
 - Keep changes scoped; reuse existing patterns. Code comments are English.
 - Do not add internal compatibility shims, dual writes, fallback paths, or legacy adapters unless requested. This does not relax API response compatibility above.
 - New global pre-workspace routes use a single word or `/{noun}/{verb}`, not hyphenated root names. Update `server/internal/handler/reserved_slugs.json`, run `pnpm generate:reserved-slugs`, and commit `packages/core/paths/reserved-slugs.ts` when changing reserved slugs.
+- Fork self-host releases use `.github/workflows/release-local.yml` through a fresh `v*-local.*` tag. CI publishes server images, Android APK, and macOS installers together; do not publish these artifacts locally.
 - Use atomic conventional commits and the repository PR template. For releases, follow [.github/RELEASING.md](.github/RELEASING.md); default to a patch bump unless specified otherwise.

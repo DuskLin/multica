@@ -11,7 +11,7 @@
  * points Intel users to the architecture-specific download below.
  */
 
-export type OSName = "mac" | "windows" | "linux" | "unknown";
+export type OSName = "mac" | "windows" | "linux" | "android" | "unknown";
 export type Arch = "arm64" | "x64" | "unknown";
 
 export interface DetectResult {
@@ -34,6 +34,7 @@ interface UserAgentDataLike {
 
 function normalizePlatform(raw: string): OSName {
   const p = raw.toLowerCase();
+  if (p.includes("android")) return "android";
   if (p.includes("mac") || p === "darwin") return "mac";
   if (p.includes("win")) return "windows";
   if (p.includes("linux")) return "linux";
@@ -43,7 +44,8 @@ function normalizePlatform(raw: string): OSName {
 function normalizeArch(raw: string): Arch {
   const a = raw.toLowerCase();
   if (a === "arm" || a === "arm64" || a === "aarch64") return "arm64";
-  if (a === "x86" || a === "x86_64" || a === "amd64" || a === "x64") return "x64";
+  if (a === "x86" || a === "x86_64" || a === "amd64" || a === "x64")
+    return "x64";
   return "unknown";
 }
 
@@ -75,19 +77,21 @@ export async function detectOS(): Promise<DetectResult> {
   const ua = navigator.userAgent;
   const platform = navigator.platform || "";
 
-  const os: OSName = /Mac|iPhone|iPad|iPod/i.test(platform) || /Mac OS X/i.test(ua)
-    ? "mac"
-    : /Win/i.test(platform) || /Windows/i.test(ua)
-      ? "windows"
-      : /Linux/i.test(platform) || /Linux/i.test(ua)
-        ? "linux"
-        : "unknown";
+  const os: OSName = /Android/i.test(ua)
+    ? "android"
+    : /Mac|iPhone|iPad|iPod/i.test(platform) || /Mac OS X/i.test(ua)
+      ? "mac"
+      : /Win/i.test(platform) || /Windows/i.test(ua)
+        ? "windows"
+        : /Linux/i.test(platform) || /Linux/i.test(ua)
+          ? "linux"
+          : "unknown";
 
   let arch: Arch = "unknown";
   if (os === "mac") {
     // Best default. Real Intel Mac users will see the architecture hint.
     arch = "arm64";
-  } else if (/arm|aarch/i.test(ua)) {
+  } else if (/arm|aarch/i.test(`${ua} ${platform}`)) {
     arch = "arm64";
   } else if (os !== "unknown") {
     arch = "x64";

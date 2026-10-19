@@ -60,7 +60,9 @@ type RendererChannel =
   | "updater:update-downloaded";
 
 function isDestroyedObjectError(err: unknown): boolean {
-  return err instanceof Error && err.message.includes("Object has been destroyed");
+  return (
+    err instanceof Error && err.message.includes("Object has been destroyed")
+  );
 }
 
 function sendToLiveRenderer(
@@ -95,11 +97,11 @@ function checkForUpdatesOnce(): Promise<unknown> {
       // download (when autoDownload=true) is exposed on result.downloadPromise.
       // Without a handler a download failure becomes an unhandled rejection
       // in the main process — Node may terminate it on future versions.
-      void (result as { downloadPromise?: Promise<unknown> } | null)?.downloadPromise?.catch(
-        (err) => {
-          console.error("Failed to download update:", err);
-        },
-      );
+      void (
+        result as { downloadPromise?: Promise<unknown> } | null
+      )?.downloadPromise?.catch((err) => {
+        console.error("Failed to download update:", err);
+      });
       return result;
     })
     .finally(() => {
@@ -109,10 +111,41 @@ function checkForUpdatesOnce(): Promise<unknown> {
   return p;
 }
 
-export function setupAutoUpdater(getMainWindow: () => BrowserWindow | null): void {
+export function setupAutoUpdater(
+  getMainWindow: () => BrowserWindow | null,
+  options: { manualDownloadUrl?: string } = {},
+): void {
+  if (options.manualDownloadUrl) {
+    // Internal macOS builds cannot use the signed automatic update flow.
+    const error = `Install updates manually from ${options.manualDownloadUrl}`;
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = false;
+    ipcMain.handle("updater:get-preferences", () => ({
+      automaticUpdates: false,
+    }));
+    ipcMain.handle(
+      "updater:set-automatic-updates",
+      (_event, enabled: unknown) => {
+        if (typeof enabled !== "boolean")
+          throw new TypeError("automaticUpdates must be a boolean");
+        if (enabled) throw new Error(error);
+        return { automaticUpdates: false };
+      },
+    );
+    ipcMain.handle("updater:check", (): ManualUpdateCheckResult => ({
+      ok: false,
+      error,
+    }));
+    ipcMain.handle("updater:download", () => {
+      throw new Error(error);
+    });
+    ipcMain.handle("updater:install", () => {
+      throw new Error(error);
+    });
+    return;
+  }
   const preferencesFilePath = updaterPreferencesPath(app.getPath("userData"));
-  let automaticUpdatesEnabled =
-    DEFAULT_UPDATER_PREFERENCES.automaticUpdates;
+  let automaticUpdatesEnabled = DEFAULT_UPDATER_PREFERENCES.automaticUpdates;
   let startupCheckElapsed = false;
   let startupTimer: ReturnType<typeof setTimeout> | null = null;
   let periodicTimer: ReturnType<typeof setInterval> | null = null;
@@ -241,31 +274,35 @@ export function setupAutoUpdater(getMainWindow: () => BrowserWindow | null): voi
     },
   );
 
-  ipcMain.handle("updater:check", async (): Promise<ManualUpdateCheckResult> => {
-    try {
-      const result = (await checkForUpdatesOnce()) as
-        | { updateInfo: { version: string }; isUpdateAvailable?: boolean }
-        | null;
-      const currentVersion = app.getVersion();
-      // Trust electron-updater's own decision rather than re-deriving it from
-      // a version-string compare. The two diverge for pre-release channels,
-      // staged rollouts, downgrades, and minimum-system-version gates — in
-      // those cases updateInfo.version differs from app.getVersion() but no
-      // `update-available` event fires, so showing "available" here would
-      // promise a download prompt that never appears.
-      return {
-        ok: true,
-        currentVersion,
-        latestVersion: result?.updateInfo.version ?? currentVersion,
-        available: result?.isUpdateAvailable ?? false,
-      };
-    } catch (err) {
-      return {
-        ok: false,
-        error: err instanceof Error ? err.message : String(err),
-      };
-    }
-  });
+  ipcMain.handle(
+    "updater:check",
+    async (): Promise<ManualUpdateCheckResult> => {
+      try {
+        const result = (await checkForUpdatesOnce()) as {
+          updateInfo: { version: string };
+          isUpdateAvailable?: boolean;
+        } | null;
+        const currentVersion = app.getVersion();
+        // Trust electron-updater's own decision rather than re-deriving it from
+        // a version-string compare. The two diverge for pre-release channels,
+        // staged rollouts, downgrades, and minimum-system-version gates — in
+        // those cases updateInfo.version differs from app.getVersion() but no
+        // `update-available` event fires, so showing "available" here would
+        // promise a download prompt that never appears.
+        return {
+          ok: true,
+          currentVersion,
+          latestVersion: result?.updateInfo.version ?? currentVersion,
+          available: result?.isUpdateAvailable ?? false,
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  );
 
   // Initial check shortly after startup so we don't block boot, plus a
   // background poll for long-running sessions. Both are torn down when the
