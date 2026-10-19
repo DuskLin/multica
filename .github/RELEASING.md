@@ -68,7 +68,8 @@ web/desktop/shared-view/mobile typechecks, lint and tests. CI then builds:
 
 Only after all jobs succeed does CI publish the GitHub prerelease, installers,
 checksums and a manifest identifying the source commit, CI run and images. A
-published release is immutable from this workflow; fixes use a new tag.
+published release is rejected before builds begin, so reruns cannot replace
+its image tags or installer assets; fixes use a new tag.
 The macOS installers are internal, unnotarized builds; users allow the first
 launch in Privacy & Security and update manually from the download page.
 Their update repository is the fork, never the upstream release feed.
