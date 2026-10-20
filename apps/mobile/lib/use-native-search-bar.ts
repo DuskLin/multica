@@ -1,5 +1,5 @@
 /**
- * Hook for wiring an iOS native `UISearchController` (via react-native-screens
+ * Hook for wiring a native search bar (via react-native-screens
  * `headerSearchBarOptions`) into a route. Returns the current query string.
  *
  * Used by every search-enabled picker route on mobile (issue/project/label/
@@ -43,6 +43,7 @@ export function useNativeSearchBar(
         onChangeText: (e: NativeSyntheticEvent<TextInputFocusEventData>) =>
           setQuery(e.nativeEvent.text),
         onCancelButtonPress: () => setQuery(""),
+        onClose: () => setQuery(""),
       },
     });
   }, [navigation, placeholder, autoFocus]);

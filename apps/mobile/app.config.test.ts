@@ -8,6 +8,20 @@ import createConfig from "./app.config";
 
 afterEach(() => vi.unstubAllEnvs());
 
+it("enables camera permission for the profile photo action", () => {
+  const config = createConfig({ config: {} } as ConfigContext);
+  const plugin = config.plugins?.find(
+    (entry) => Array.isArray(entry) && entry[0] === "expo-image-picker",
+  );
+  expect(plugin).toEqual([
+    "expo-image-picker",
+    expect.objectContaining({
+      cameraPermission: expect.any(String),
+      microphonePermission: false,
+    }),
+  ]);
+});
+
 describe("iOS scene lifecycle configuration", () => {
   it("binds fork Android identity and version to the release", () => {
     vi.stubEnv("APP_ENV", "production");

@@ -22,7 +22,7 @@
  */
 import { useRef } from "react";
 import { Tabs } from "expo-router";
-import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 import { View } from "react-native";
 import type { TriggerRef } from "@rn-primitives/dropdown-menu";
 import { useWorkspaceStore } from "@/data/workspace-store";
@@ -83,9 +83,10 @@ export default function TabsLayout() {
             tabBarBadge: inboxBadge,
             tabBarBadgeStyle: BADGE_STYLE,
             tabBarIcon: ({ color, size, focused }) => (
-              <Image
-                source={focused ? "sf:tray.fill" : "sf:tray"}
-                style={{ width: size, height: size, color }}
+              <Ionicons
+                name={focused ? "file-tray" : "file-tray-outline"}
+                size={size}
+                color={color}
               />
             ),
           }}
@@ -95,9 +96,10 @@ export default function TabsLayout() {
           options={{
             title: t("tabs.my_issues"),
             tabBarIcon: ({ color, size, focused }) => (
-              <Image
-                source={focused ? "sf:checklist" : "sf:checklist.unchecked"}
-                style={{ width: size, height: size, color }}
+              <Ionicons
+                name={focused ? "checkbox" : "checkbox-outline"}
+                size={size}
+                color={color}
               />
             ),
           }}
@@ -109,9 +111,10 @@ export default function TabsLayout() {
             tabBarBadge: chatBadge,
             tabBarBadgeStyle: BADGE_STYLE,
             tabBarIcon: ({ color, size, focused }) => (
-              <Image
-                source={focused ? "sf:bubble.left.fill" : "sf:bubble.left"}
-                style={{ width: size, height: size, color }}
+              <Ionicons
+                name={focused ? "chatbubble" : "chatbubble-outline"}
+                size={size}
+                color={color}
               />
             ),
           }}
@@ -121,9 +124,10 @@ export default function TabsLayout() {
           options={{
             title: t("tabs.more"),
             tabBarIcon: ({ color, size }) => (
-              <Image
-                source="sf:ellipsis"
-                style={{ width: size, height: size, color }}
+              <Ionicons
+                name="ellipsis-horizontal"
+                size={size}
+                color={color}
               />
             ),
           }}

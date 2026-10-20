@@ -23,8 +23,7 @@
  * leaves the real tab button entirely alone.
  *
  * Visual conventions inside the popover (apps/mobile/CLAUDE.md):
- *   - All glyphs are SF Symbols rendered via expo-image (`sf:` source),
- *     so they share the visual language of the bottom tab bar icons.
+ *   - Ionicons match the bottom tab bar on both iOS and Android.
  *   - All colours route through THEME tokens (foreground /
  *     mutedForeground / secondary), so dark mode is automatic.
  *   - Workspace is collapsed to a single `<WorkspaceCard>` row (icon +
@@ -34,9 +33,9 @@
  *     Earlier shape (every workspace inlined here) made the popover long
  *     and offered no friction against accidental taps.
  */
-import { useMemo } from "react";
+import { type ComponentProps, useMemo } from "react";
 import { Image, Pressable, View } from "react-native";
-import { Image as ExpoImage } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 import { router, usePathname } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -68,16 +67,15 @@ const TAB_BAR_HEIGHT = 49;
 
 interface NavItem {
   labelKey: "more_menu.pinned" | "more_menu.issues" | "more_menu.projects";
-  /** SF Symbol name, rendered via expo-image `source: "sf:<name>"`. */
-  icon: string;
+  icon: ComponentProps<typeof Ionicons>["name"];
   /** Path under /:slug/ — final href is `/${slug}${path}`. */
   path: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { labelKey: "more_menu.pinned", icon: "pin", path: "/more/pins" },
-  { labelKey: "more_menu.issues", icon: "list.bullet", path: "/more/issues" },
-  { labelKey: "more_menu.projects", icon: "square.stack", path: "/more/projects" },
+  { labelKey: "more_menu.pinned", icon: "pin-outline", path: "/more/pins" },
+  { labelKey: "more_menu.issues", icon: "list-outline", path: "/more/issues" },
+  { labelKey: "more_menu.projects", icon: "layers-outline", path: "/more/projects" },
 ];
 
 export function MoreTabDropdownAnchor({
@@ -160,10 +158,10 @@ export function MoreTabDropdownAnchor({
                 isActive(item.path) && "bg-secondary",
               )}
             >
-              <ExpoImage
-                source={`sf:${item.icon}`}
-                tintColor={theme.foreground}
-                style={{ width: 18, height: 18 }}
+              <Ionicons
+                name={item.icon}
+                color={theme.foreground}
+                size={18}
               />
               <Text className="text-sm text-foreground">{t(item.labelKey)}</Text>
             </DropdownMenuItem>
@@ -225,10 +223,10 @@ function UserCard({
           </Text>
         ) : null}
       </View>
-      <ExpoImage
-        source="sf:chevron.right"
-        tintColor={chevronTint}
-        style={{ width: 12, height: 12 }}
+      <Ionicons
+        name="chevron-forward"
+        color={chevronTint}
+        size={12}
       />
     </DropdownMenuItem>
   );
@@ -289,10 +287,10 @@ function WorkspaceCard({
         </Text>
       </View>
       {canSwitch ? (
-        <ExpoImage
-          source="sf:chevron.right"
-          tintColor={chevronTint}
-          style={{ width: 12, height: 12 }}
+        <Ionicons
+          name="chevron-forward"
+          color={chevronTint}
+          size={12}
         />
       ) : null}
     </DropdownMenuItem>

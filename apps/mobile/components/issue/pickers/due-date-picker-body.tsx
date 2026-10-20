@@ -1,5 +1,5 @@
 /**
- * Pure picker body for due-date. Wraps the native UIDatePicker. The caller
+ * Native due-date picker body. The caller
  * (a formSheet route) renders the Done / Clear actions in its own header
  * area — this body only handles the picker spinner + the local draft state.
  *
@@ -10,10 +10,12 @@
  * day as a date-only string.
  */
 import { useState, useEffect, useImperativeHandle, forwardRef } from "react";
-import { View } from "react-native";
+import { Platform, View } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { toDateOnly, dateOnlyToLocalDate } from "@multica/core/issues/date";
-import { i18n } from "@/lib/i18n";
+import { toDateOnly, dateOnlyToLocalDate, formatDateOnly } from "@multica/core/issues/date";
+import { Button } from "@/components/ui/button";
+import { Text } from "@/components/ui/text";
+import { useT } from "@/lib/i18n";
 
 interface Props {
   value: string | null;
@@ -31,6 +33,8 @@ function toLocalDay(value: string | null): Date {
 export const DueDatePickerBody = forwardRef<DueDatePickerBodyHandle, Props>(
   function DueDatePickerBody({ value }, ref) {
     const [draft, setDraft] = useState<Date>(() => toLocalDay(value));
+    const [pickerOpen, setPickerOpen] = useState(true);
+    const { t, i18n } = useT("issues");
 
     useEffect(() => {
       setDraft(toLocalDay(value));
@@ -40,6 +44,38 @@ export const DueDatePickerBody = forwardRef<DueDatePickerBodyHandle, Props>(
       getIso: () => toDateOnly(draft),
     }));
 
+    if (Platform.OS === "android") {
+      return (
+        <View className="flex-1 items-center pt-2">
+          <Button
+            variant="outline"
+            accessibilityLabel={t("common:fields.due_date")}
+            onPress={() => setPickerOpen(true)}
+          >
+            <Text>
+              {formatDateOnly(
+                toDateOnly(draft),
+                { year: "numeric", month: "long", day: "numeric" },
+                i18n.resolvedLanguage ?? i18n.language,
+              )}
+            </Text>
+          </Button>
+          {pickerOpen ? (
+            <DateTimePicker
+              value={draft}
+              mode="date"
+              display="default"
+              onValueChange={(_event, selected) => {
+                setPickerOpen(false);
+                setDraft(selected);
+              }}
+              onDismiss={() => setPickerOpen(false)}
+            />
+          ) : null}
+        </View>
+      );
+    }
+
     return (
       <View className="flex-1 items-center pt-2">
         <DateTimePicker
@@ -47,9 +83,7 @@ export const DueDatePickerBody = forwardRef<DueDatePickerBodyHandle, Props>(
           mode="date"
           display="inline"
           locale={i18n.resolvedLanguage ?? i18n.language}
-          onChange={(_event, selected) => {
-            if (selected) setDraft(selected);
-          }}
+          onValueChange={(_event, selected) => setDraft(selected)}
         />
       </View>
     );

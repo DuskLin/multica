@@ -5,8 +5,10 @@
  * Present nested reaction sheets from the outer sheet's completion callback;
  * iOS cannot present the next ActionSheet while the first is dismissing.
  */
+import type { ShowMobileActionSheet } from "@/lib/action-sheet";
+import { useMobileActionSheet } from "@/lib/use-action-sheet";
 import { useCallback, useState } from "react";
-import { ActionSheetIOS, Alert } from "react-native";
+import { Alert } from "react-native";
 import { router } from "expo-router";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
@@ -48,6 +50,7 @@ export function useCommentLongPress(
     select: commentDeleteKeepsReplies,
   });
   const { t } = useT("issues");
+  const showActionSheet = useMobileActionSheet();
 
   const onLongPress = useCallback(() => {
     const isOwn = entry.actor_type === "member" && entry.actor_id === userId;
@@ -98,7 +101,7 @@ export function useCommentLongPress(
       ? actions.findIndex((a) => a.kind === "delete")
       : undefined;
 
-    ActionSheetIOS.showActionSheetWithOptions(
+    showActionSheet(
       {
         options,
         cancelButtonIndex,
@@ -134,6 +137,7 @@ export function useCommentLongPress(
             // Present the nested React sheet from inside this completion
             // callback — see file header for why.
             presentReactSheet({
+              showActionSheet,
               entry,
               reactions,
               userId,
@@ -203,6 +207,7 @@ export function useCommentLongPress(
     toggleReaction,
     deleteComment,
     resolveComment,
+    showActionSheet,
     getName,
     keepReplies,
     t,
@@ -212,6 +217,7 @@ export function useCommentLongPress(
 }
 
 function presentReactSheet(args: {
+  showActionSheet: ShowMobileActionSheet;
   entry: TimelineEntry;
   reactions: Reaction[];
   userId: string | undefined;
@@ -219,7 +225,7 @@ function presentReactSheet(args: {
   issueId: string;
   toggle: (emoji: string, existing: Reaction | undefined) => void;
 }) {
-  const { entry, reactions, userId, wsSlug, issueId, toggle } = args;
+  const { entry, reactions, userId, wsSlug, issueId, toggle, showActionSheet } = args;
   const emojis = QUICK_EMOJIS.slice(0, QUICK_ROW_SIZE);
   const t = i18n.t.bind(i18n);
   const options = [
@@ -229,7 +235,7 @@ function presentReactSheet(args: {
   ];
   const cancelButtonIndex = options.length - 1;
 
-  ActionSheetIOS.showActionSheetWithOptions(
+  showActionSheet(
     { options, cancelButtonIndex },
     (i) => {
       if (i === cancelButtonIndex) return;

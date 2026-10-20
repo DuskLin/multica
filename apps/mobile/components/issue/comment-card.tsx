@@ -10,7 +10,7 @@
  * thread. Counts agree (no comment is dropped or duplicated).
  *
  * Interaction: long-press inside a bubble fires a native iOS
- * `ActionSheetIOS` with the comment's actions (Reply, React…, Copy,
+ * `action sheet` with the comment's actions (Reply, React…, Copy,
  * Select Text, Copy Link, Resolve, Delete). While the sheet is on screen
  * the targeted bubble's border highlights. See `useCommentLongPress` in
  * `./comment-context-menu.tsx`.
@@ -501,7 +501,7 @@ function CommentBody({
   //     inline-insert).
   // Mirrors web's split: comment-card.tsx:124 `AttachmentList`.
   //
-  // When NOT selecting: long-press fires the native ActionSheetIOS via
+  // When NOT selecting: long-press fires the native action sheet via
   // useCommentLongPress. Markdown is non-selectable so the long-press
   // gesture doesn't race UIKit's text selection.
   //

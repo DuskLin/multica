@@ -224,7 +224,7 @@ class ApiClient {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "X-Client-Platform": "mobile",
-      "X-Client-OS": "ios",
+      "X-Client-OS": process.env.EXPO_OS ?? "unknown",
       "X-Client-Version": "0.1.0",
       "X-Request-ID": rid,
       ...((init.headers as Record<string, string>) ?? {}),
@@ -1316,7 +1316,7 @@ class ApiClient {
     const headers: Record<string, string> = {
       // No Content-Type — let fetch set the multipart boundary.
       "X-Client-Platform": "mobile",
-      "X-Client-OS": "ios",
+      "X-Client-OS": process.env.EXPO_OS ?? "unknown",
       "X-Client-Version": "0.1.0",
       "X-Request-ID": rid,
     };

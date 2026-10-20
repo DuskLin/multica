@@ -21,8 +21,10 @@ These rules apply only to `apps/mobile/`, in addition to the [root instructions]
 ## UI Components
 
 - Inspect existing rows, pickers, forms, and domain visuals before adding components. Extend a suitable existing pattern; do not rewrite a domain component merely because a new feature uses it.
-- For a new interaction, prefer a native iOS/RN API, then an RNR component. If neither fits, compose existing primitives inline for a local need. A new generic primitive requires at least three callers and no suitable native/RNR alternative; clarify unresolved interaction requirements before inventing one.
-- Native examples: `Alert.prompt` for text prompts, `Alert.alert` for confirmation, `ActionSheetIOS` for action menus, existing native date/media/document pickers, `Share.share`, and `expo-haptics`.
+- For a new interaction, prefer a native API supported on the target platform, then an RNR component. If neither fits, compose existing primitives inline for a local need. A new generic primitive requires at least three callers and no suitable native/RNR alternative; clarify unresolved interaction requirements before inventing one.
+- Native examples: `Alert.alert` for confirmation, existing native date/media/document pickers, `Share.share`, and `expo-haptics`. `Alert.prompt` is iOS-only; shared text-entry flows use a formSheet.
+- Action menus use `useMobileActionSheet` from `lib/use-action-sheet.ts`, backed by the root `ActionSheetProvider`: native on iOS, modal-backed on Android. Always provide a cancel index so Android back/backdrop dismissal clears pressed state. Do not import `ActionSheetIOS` directly. Use cross-platform icons; `expo-image` SF Symbol sources do not render on Android.
+- Android date pickers are dialogs: unmount after selection/cancellation and provide a way to reopen. Keep `display="inline"` and locale overrides on iOS.
 - Add RNR components with `npx @react-native-reusables/cli@latest add <name>`. Review generated changes and preserve local customizations. Keep default variants/spacing unless a concrete product need requires changes.
 - Generic primitives live in `components/ui/`; domain compositions live in `components/<domain>/`. Use the existing `cn()` in `lib/utils.ts` and semantic tokens.
 - Screens have titles, tab bars have icons, secondary labels use type-aware helpers, and multiple trailing row elements stack vertically. Check long text, keyboard, safe areas, scrolling, and both themes.

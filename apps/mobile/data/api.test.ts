@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "./api";
@@ -5,6 +6,37 @@ import { api } from "./api";
 // api.ts refuses to load without a base URL; set it before the import runs.
 vi.hoisted(() => {
   process.env.EXPO_PUBLIC_API_URL = "https://api.example.test";
+});
+
+describe("mobile client platform headers", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it.each(["android", "ios"])("reports %s for JSON and file requests", async (os) => {
+    vi.stubEnv("EXPO_OS", os);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(Response.json({
+        id: "attachment-1", filename: "photo.jpg", url: "/photo.jpg",
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.deleteComment("comment-1");
+    await api.uploadFile({
+      uri: "file:///photo.jpg", name: "photo.jpg", type: "image/jpeg",
+    });
+
+    for (const [, init] of fetchMock.mock.calls) {
+      expect(init.headers).toMatchObject({
+        "X-Client-Platform": "mobile",
+        "X-Client-OS": os,
+      });
+    }
+  });
 });
 
 // The real store pulls in expo-secure-store; the client only needs the slug.

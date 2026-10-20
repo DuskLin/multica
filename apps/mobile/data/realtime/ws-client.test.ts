@@ -52,6 +52,29 @@ function connectAuthenticatedClient() {
   return { client, socket };
 }
 
+describe("WSClient platform identity", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it.each(["android", "ios"])("reports %s on the upgrade URL", (os) => {
+    vi.stubEnv("EXPO_OS", os);
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    MockWebSocket.instances = [];
+    const client = new WSClient({
+      url: "wss://example.test/ws",
+      token: "token",
+      workspaceSlug: "workspace",
+    });
+    client.connect();
+    const params = new URL(MockWebSocket.instances[0].url).searchParams;
+    expect(params.get("client_platform")).toBe("mobile");
+    expect(params.get("client_os")).toBe(os);
+    client.disconnect();
+  });
+});
+
 describe("WSClient application heartbeat", () => {
   beforeEach(() => {
     vi.useFakeTimers();

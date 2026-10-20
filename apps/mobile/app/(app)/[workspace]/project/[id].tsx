@@ -9,13 +9,13 @@
  * Per-record realtime: `useProjectRealtime(id, onDeleted=back)` subscribes
  * to `project:updated` (full replace) and `project:deleted` (pop back).
  *
- * Right-top "…" menu (ActionSheetIOS) → Edit / Delete. Delete asks for
+ * Right-top "…" menu (action sheet) → Edit / Delete. Delete asks for
  * confirmation via `Alert.alert` per iOS HIG (destructive actions need
  * a second tap).
  */
+import { useMobileActionSheet } from "@/lib/use-action-sheet";
 import { useCallback } from "react";
 import {
-  ActionSheetIOS,
   ActivityIndicator,
   Alert,
   Linking,
@@ -85,6 +85,7 @@ export default function ProjectDetail() {
   const createPin = useCreatePin();
   const deletePin = useDeletePin();
   const { t } = useT("projects");
+  const showActionSheet = useMobileActionSheet();
 
   const onPressMore = () => {
     if (!project) return;
@@ -106,7 +107,7 @@ export default function ProjectDetail() {
                 : t("common:actions.delete"),
     );
     const destructiveIndex = options.length - 1;
-    ActionSheetIOS.showActionSheetWithOptions(
+    showActionSheet(
       {
         options,
         cancelButtonIndex: 0,

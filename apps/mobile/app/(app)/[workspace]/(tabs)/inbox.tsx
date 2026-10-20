@@ -1,6 +1,6 @@
+import { useMobileActionSheet } from "@/lib/use-action-sheet";
 import { useMemo } from "react";
 import {
-  ActionSheetIOS,
   Alert,
   FlatList,
   View,
@@ -36,6 +36,7 @@ import {
 
 export default function Inbox() {
   const { t } = useT("inbox");
+  const showActionSheet = useMobileActionSheet();
   const wsId = useWorkspaceStore((s) => s.currentWorkspaceId);
   const wsSlug = useWorkspaceStore((s) => s.currentWorkspaceSlug);
   const { colorScheme } = useColorScheme();
@@ -79,7 +80,7 @@ export default function Inbox() {
       t("actions.archive_completed"),
       t("actions.archive_all"),
     ];
-    ActionSheetIOS.showActionSheetWithOptions(
+    showActionSheet(
       {
         options,
         cancelButtonIndex: 0,

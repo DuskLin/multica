@@ -10,9 +10,9 @@
  * store via setUser — same source-of-truth pattern as web (server response
  * is authoritative, never the local form state).
  */
+import { useMobileActionSheet } from "@/lib/use-action-sheet";
 import { useEffect, useState } from "react";
 import {
-  ActionSheetIOS,
   Alert,
   ActivityIndicator,
   Pressable,
@@ -47,6 +47,7 @@ export default function ProfileSettingsScreen() {
   const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
   const { t } = useT("settings");
+  const showActionSheet = useMobileActionSheet();
 
   const [name, setName] = useState(user?.name ?? "");
   const [saving, setSaving] = useState(false);
@@ -76,7 +77,7 @@ export default function ProfileSettingsScreen() {
             : t("common:actions.cancel"),
     );
 
-    ActionSheetIOS.showActionSheetWithOptions(
+    showActionSheet(
       {
         options: visibleOptions,
         cancelButtonIndex: cancelIndex,
