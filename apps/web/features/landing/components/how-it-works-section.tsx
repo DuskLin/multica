@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useAuthStore } from "@multica/core/auth";
-import { docsHrefForLocale, useLocale } from "../i18n";
+import { DOCUMENTATION_URL, useLocale } from "../i18n";
 import { useDashboardCtaHref } from "../utils/use-dashboard-cta";
 import { GitHubMark, githubUrl, heroButtonClassName } from "./shared";
 
 export function HowItWorksSection() {
-  const { t, locale } = useLocale();
+  const { t } = useLocale();
   const user = useAuthStore((s) => s.user);
   const ctaHref = useDashboardCtaHref();
 
@@ -47,7 +47,7 @@ export function HowItWorksSection() {
             {user ? t.header.dashboard : t.howItWorks.cta}
           </Link>
           <Link
-            href={docsHrefForLocale(locale)}
+            href={DOCUMENTATION_URL}
             className={heroButtonClassName("ghost")}
           >
             {t.howItWorks.ctaDocs}

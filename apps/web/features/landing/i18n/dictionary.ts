@@ -1,4 +1,4 @@
-import { docsHrefForLocale } from "@/lib/docs-href";
+import { DOCUMENTATION_URL } from "@multica/core/paths";
 import { createEnDict } from "./en";
 import { createJaDict } from "./ja";
 import { createKoDict } from "./ko";
@@ -20,14 +20,13 @@ const dictionaryFactories: Record<
   zh: createZhDict,
 };
 
-// Locales without their own landing copy (e.g. French) reuse another
-// dictionary, but docs links still follow the viewer's locale.
+// Locales without their own landing copy (e.g. French) reuse another dictionary.
 export function createLandingDict(
   locale: Locale,
   allowSignup: boolean,
 ): LandingDict {
   return dictionaryFactories[toLandingDictionaryLocale(locale)](
     allowSignup,
-    docsHrefForLocale(locale),
+    DOCUMENTATION_URL,
   );
 }

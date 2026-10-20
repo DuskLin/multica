@@ -4,13 +4,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Download } from "lucide-react";
 import { useAuthStore } from "@multica/core/auth";
-import { docsHrefForLocale, useLocale } from "../i18n";
+import { DOCUMENTATION_URL, useLocale } from "../i18n";
 import { useDashboardCtaHref } from "../utils/use-dashboard-cta";
 import { HERO_PROVIDERS } from "./provider-marks";
 import { heroButtonClassName } from "./shared";
 
 export function LandingHero() {
-  const { t, locale } = useLocale();
+  const { t } = useLocale();
   const user = useAuthStore((s) => s.user);
   const ctaHref = useDashboardCtaHref();
 
@@ -60,7 +60,7 @@ export function LandingHero() {
 
           <WorksWithRow
             label={t.hero.worksWith}
-            href={`${docsHrefForLocale(locale)}/providers`}
+            href={`${DOCUMENTATION_URL}/providers`}
           />
 
           <div id="preview" className="mt-10 sm:mt-12">

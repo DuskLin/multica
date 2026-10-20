@@ -5,8 +5,8 @@ import type { MetadataRoute } from "next";
  * opens the workspace or login; the marketing host's root would open the landing
  * page even for a signed-in user.
  *
- * Standard icons share desktop artwork. The maskable SVG supplies full-bleed
- * artwork for launcher cropping; regenerate raster sizes from those source assets.
+ * Standard icons share desktop artwork; regenerate with pnpm generate:app-icons.
+ * The separate maskable SVG supplies full-bleed artwork for launcher cropping.
  */
 
 /** Launch path. Exported so manifest.test.ts can run it through the proxy. */

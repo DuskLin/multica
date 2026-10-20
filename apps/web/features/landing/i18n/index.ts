@@ -1,6 +1,6 @@
 export { LocaleProvider, useLocale } from "./context";
 export {
-  docsHrefForLocale,
+  DOCUMENTATION_URL,
   isZhLocale,
   locales,
   localeLabels,

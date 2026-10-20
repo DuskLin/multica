@@ -523,6 +523,29 @@ export function createEnDict(
     },
     entries: [
       {
+        version: "0.6.5-local.3",
+        date: "2026-10-20",
+        title: "Cumulative local updates: script workspaces, multi-repository PR sync, and self-hosted clients",
+        changes: [],
+        features: [
+          "Local projects can initialize isolated folders with a Bash script, including non-Git folders and projects with multiple repositories, while keeping setup logs and run output.",
+          "Local backends can use GitHub CLI to link PRs from multiple repositories in Issue descriptions and completed runs, then update the Issue according to workspace settings once all PRs merge. This is opt-in and requires a loopback backend with no cloud connection configured.",
+          "Self-hosted releases build server images, macOS installers, and signed Android APKs together in CI, with the deployment URL bundled into the clients.",
+        ],
+        improvements: [
+          "Follow-up runs and retries for the same Issue or conversation reuse the script folder. Runs sharing a folder execute in sequence; separate Issues or conversations can run in parallel.",
+          "The desktop app is named Multica CD and keeps the existing Multica user data directory.",
+          "The download page selects a complete local release for the configured deployment and shows its version and platform installers.",
+        ],
+        fixes: [
+          "Fixed an Android startup crash caused by mismatched native dependencies, and added an emulator launch check for signed APKs in CI.",
+          "Cancelling a run retries child-process cleanup to reduce exit timeouts.",
+          "Cancellation remains correctly reported when an interrupted result races with the cancellation signal, while completed results are preserved.",
+          "Local Git snapshots no longer miss content edits that leave file size unchanged.",
+          "Fixed client CI packaging configuration and missing license files, and stabilized the search-menu tests in release checks.",
+        ],
+      },
+      {
         version: "0.6.3",
         date: "2026-10-16",
         title: "Per-run cost details, shorter onboarding, revoked access for former members, and steadier runs",

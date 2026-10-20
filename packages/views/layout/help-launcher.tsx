@@ -17,20 +17,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@multica/ui/components/ui/dropdown-menu";
-import { useModalStore } from "@multica/core/modals";
 import { useConfigStore } from "@multica/core/config";
+import { DOCUMENTATION_URL } from "@multica/core/paths";
 import { isDesktopShell } from "../platform/local-directory";
-import { DISCORD_URL, DiscordIcon } from "./discord";
+import { useNavigation } from "../navigation";
 import { useT } from "../i18n";
-import { docsLocalePrefix } from "../common/docs-locale";
 
-const DOCS_URL = "https://multica.ai/docs";
-const CHANGELOG_URL = "https://multica.ai/changelog";
+const FEEDBACK_URL = "https://github.com/DuskLin/multica";
 // The web deployment owns its release source, including fork installers.
 const DOWNLOAD_URL = "/download";
 
 export function HelpLauncher() {
-  const { t, i18n } = useT("layout");
+  const { t } = useT("layout");
+  const { getShareableUrl } = useNavigation();
   const serverVersion = useConfigStore((state) => state.serverVersion);
   // Web-only: offering "download the desktop app" inside the desktop app is
   // nonsense, and this sidebar is shared — apps/desktop renders the same
@@ -42,6 +41,8 @@ export function HelpLauncher() {
   // markup matches either way, so the link can ship in the SSR payload instead
   // of popping in a frame late.
   const desktop = isDesktopShell();
+  // Web keeps same-origin paths for SSR; desktop uses the connected app URL.
+  const changelogUrl = desktop ? getShareableUrl("/changelog") : "/changelog";
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -78,7 +79,7 @@ export function HelpLauncher() {
         <DropdownMenuItem
           render={
             <a
-              href={`${DOCS_URL}${docsLocalePrefix(i18n.language)}`}
+              href={DOCUMENTATION_URL}
               target="_blank"
               rel="noopener noreferrer"
             />
@@ -91,7 +92,7 @@ export function HelpLauncher() {
         <DropdownMenuItem
           render={
             <a
-              href={CHANGELOG_URL}
+              href={changelogUrl}
               target="_blank"
               rel="noopener noreferrer"
             />
@@ -103,18 +104,12 @@ export function HelpLauncher() {
         </DropdownMenuItem>
         <DropdownMenuItem
           render={
-            <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer" />
+            <a href={FEEDBACK_URL} target="_blank" rel="noopener noreferrer" />
           }
-        >
-          <DiscordIcon className="h-3.5 w-3.5" />
-          {t(($) => $.help.discord)}
-          <ArrowUpRight className="size-3 translate-y-px text-faint-foreground" />
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => useModalStore.getState().open("feedback")}
         >
           <MessageCircle className="h-3.5 w-3.5" />
           {t(($) => $.help.feedback)}
+          <ArrowUpRight className="size-3 translate-y-px text-faint-foreground" />
         </DropdownMenuItem>
         {serverVersion && (
           <>
