@@ -1,5 +1,18 @@
 Self-hosted Multica release built by GitHub Actions.
 
+## v0.6.7-local.1 — 2026-10-20
+
+Changes since `v0.6.6-local.1`.
+
+### Fixes
+
+- Fixed missing Android icons in tabs, navigation, status controls, and workspace switching.
+- Profile photo actions and message/comment long-press menus now work on Android, including cancellation with the back button or backdrop.
+- Android due-date selection now closes its native dialog after selection or cancellation and can be reopened.
+- Closing the native search bar clears the search query.
+- API requests, uploads, and WebSocket connections now report the actual mobile operating system.
+- Enabled the camera permission needed to take a profile photo.
+
 ## v0.6.6-local.1 — 2026-10-20
 
 Changes since `v0.6.5-local.3`.

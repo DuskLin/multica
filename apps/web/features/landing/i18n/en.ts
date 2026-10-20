@@ -523,6 +523,22 @@ export function createEnDict(
     },
     entries: [
       {
+        version: "0.6.7-local.1",
+        date: "2026-10-20",
+        title: "Android icons and native interaction fixes",
+        changes: [],
+        features: [],
+        improvements: [],
+        fixes: [
+          "Fixed missing Android icons in tabs, navigation, status controls, and workspace switching.",
+          "Profile photo actions and message/comment long-press menus now work on Android, including cancellation with the back button or backdrop.",
+          "Android due-date selection now closes its native dialog after selection or cancellation and can be reopened.",
+          "Closing the native search bar clears the search query.",
+          "API requests, uploads, and WebSocket connections now report the actual mobile operating system.",
+          "Enabled the camera permission needed to take a profile photo.",
+        ],
+      },
+      {
         version: "0.6.6-local.1",
         date: "2026-10-20",
         title: "Work directory management, branch recovery, and live setup progress",

@@ -508,6 +508,22 @@ export function createZhDict(
     },
     entries: [
       {
+        version: "0.6.7-local.1",
+        date: "2026-10-20",
+        title: "Android 图标与原生交互修复",
+        changes: [],
+        features: [],
+        improvements: [],
+        fixes: [
+          "修复 Android 标签栏、导航、状态控件和工作区切换中的图标缺失。",
+          "头像操作及消息、评论长按菜单支持 Android，并在返回键或点击遮罩取消时清除按压状态。",
+          "Android 截止日期选择在选中或取消后关闭原生弹窗，并支持重新打开。",
+          "关闭原生搜索栏时清空搜索内容。",
+          "接口请求、文件上传和 WebSocket 连接正确上报移动端操作系统。",
+          "启用拍摄头像所需的相机权限。",
+        ],
+      },
+      {
         version: "0.6.6-local.1",
         date: "2026-10-20",
         title: "工作目录管理、分支恢复与实时初始化进度",
