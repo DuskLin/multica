@@ -416,26 +416,21 @@ describe("SearchCommand", () => {
     expect(screen.queryByText("Inbox")).not.toBeInTheDocument();
   });
 
-  it("offers every workspace nav page, not a hand-maintained subset", async () => {
-    const user = userEvent.setup();
-    renderSearch();
-    const input = screen.getByPlaceholderText("Type a command or search...");
+  it.each(Object.values(WORKSPACE_PAGES).map((page) => enLayout.nav[page.navKey]))(
+    "offers the %s workspace navigation page",
+    async (label) => {
+      const user = userEvent.setup();
+      renderSearch();
+      const input = screen.getByPlaceholderText("Type a command or search...");
 
-    // The Pages group is generated from WORKSPACE_PAGES — the same registry
-    // the sidebar and the desktop tab bar read — so searching a page by the
-    // exact name the sidebar shows must always reach it. The hand-written
-    // list this replaced had gone stale by four pages (MUL-6272).
-    for (const page of Object.values(WORKSPACE_PAGES)) {
-      const label = enLayout.nav[page.navKey];
-      await user.clear(input);
       await user.type(input, label);
       expect(
         await screen.findByText(
           (_, el) => el?.textContent === label && el?.tagName === "SPAN",
         ),
       ).toBeInTheDocument();
-    }
-  });
+    },
+  );
 
   it("does not surface a page on an incidental substring of a hidden keyword", async () => {
     const user = userEvent.setup();
