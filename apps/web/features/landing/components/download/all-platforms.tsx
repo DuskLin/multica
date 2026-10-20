@@ -167,9 +167,7 @@ export function AllPlatforms({ assets, fallbackHref, local = false }: Props) {
   );
 }
 
-// ------------------------------------------------------------
 // Row
-// ------------------------------------------------------------
 
 interface RowProps {
   icon: React.ReactNode;
