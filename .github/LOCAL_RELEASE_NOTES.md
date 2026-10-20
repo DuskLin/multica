@@ -1,7 +1,7 @@
 Self-hosted Multica release built by GitHub Actions.
 
 - Server images: one Docker Hub repository, with `backend-<tag>` and `web-<tag>` tags.
-- macOS: Apple Silicon and Intel DMG/ZIP installers, bundled local daemon, deployment URL included.
+- macOS: Apple Silicon and Intel DMG/ZIP installers containing `Multica CD.app`, bundled local daemon, deployment URL included. Existing user data stays in the `Multica` profile directory.
 - Android: signed release APK using the persistent fork signing key.
 - `checksums.txt` and `release-manifest.txt` identify the artifacts, source commit and CI run.
 

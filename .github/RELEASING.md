@@ -60,8 +60,10 @@ web/desktop/shared-view/mobile typechecks, lint and tests. CI then builds:
 
 - Linux AMD64 backend and web images for the cloud host, tagged
   `backend-<tag>` and `web-<tag>` in the same Docker Hub repository.
-- macOS ARM64 and x64 DMG/ZIP installers with the matching daemon and bundled
-  platform URLs. Explicit `~/.multica/desktop.json` settings still take priority.
+- macOS ARM64 and x64 DMG/ZIP installers containing `Multica CD.app`, with the
+  matching daemon and bundled platform URLs. The existing `Multica` user data
+  directory and bundle identifier are preserved. Explicit
+  `~/.multica/desktop.json` settings still take priority.
 - A signed Android release APK with the same version, package
   `ai.multica.mobile.local`, and the workflow run number as its increasing
   version code. Rerunning the same workflow retains the same version code.

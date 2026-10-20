@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeImage, Notification, screen } from "electron";
+import { mkdirSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 import { pathToFileURL } from "url";
@@ -565,13 +566,15 @@ if (is.dev) {
   app.setName(DEV_APP_NAME);
   app.setPath("userData", join(app.getPath("appData"), DEV_APP_NAME));
 } else {
-  // Pin the production app name in code. Electron's Linux WM_CLASS is set
-  // from app.getName() when the first BrowserWindow is realized; the
-  // packaged ASAR's package.json `productName` already steers app.getName()
-  // to "Multica", but anchoring it here makes WM_CLASS ↔ StartupWMClass
-  // (declared in electron-builder.yml) survive a regression in
-  // productName / the build pipeline. Must run before requestSingleInstanceLock().
-  app.setName("Multica");
+  // Keep the existing profile independent of the display name. Explicit
+  // --user-data-dir overrides still select an isolated profile.
+  const profilePath = app.commandLine.getSwitchValue("user-data-dir") ||
+    join(app.getPath("appData"), "Multica");
+  mkdirSync(profilePath, { recursive: true });
+  app.setPath("userData", profilePath);
+  app.setPath("sessionData", profilePath);
+  // Match productName and Linux StartupWMClass before creating any windows.
+  app.setName("Multica CD");
 }
 
 // --- Protocol registration -----------------------------------------------
