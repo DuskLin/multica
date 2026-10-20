@@ -598,7 +598,7 @@ export function ActiveTaskRow({
           <TranscriptButton
             task={task}
             agentName=""
-            isLive={task.status === "running"}
+            isLive={task.status === "running" || task.status === "dispatched"}
             title={t(($) => $.execution_log.transcript_tooltip)}
             onOpenChange={onTranscriptOpenChange}
           />

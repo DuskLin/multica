@@ -7884,6 +7884,8 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	}
 	defer envClaim.Release()
 
+	var msgSeq atomic.Int32
+
 	// Try to reuse the workdir from a previous task on the same (agent, issue) pair.
 	var env *execenv.Environment
 	// For a built-in codex task, use the version paired with the resolved path
@@ -8258,7 +8260,15 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			} else if localAssignment != nil {
 				prepParams.LocalWorkDir = localAssignment.AbsPath
 			}
+			var stopProgress func(error)
+			// Chat draft restoration relies on preparation leaving its transcript empty.
+			if localAssignment.UsesScript() && task.ChatSessionID == "" {
+				stopProgress = d.streamScriptPreparation(task.ID, resolvedRoot, &msgSeq)
+			}
 			env, err = d.prepareExecutionEnvironment(prepareCtx, prepParams)
+			if stopProgress != nil {
+				stopProgress(err)
+			}
 			if err != nil {
 				return TaskResult{}, asEnvironmentSetupFailure(fmt.Errorf("prepare execution environment: %w", err))
 			}
@@ -8813,7 +8823,6 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 
 	// Shared across the resume-retry below so the retry's transcript rows
 	// keep ascending seq values for the same task.
-	var msgSeq atomic.Int32
 	result, tools, err := d.executeAndDrain(ctx, backend, prompt, execOpts, taskLog, task.ID, env.CodexHome, &msgSeq)
 	if err != nil {
 		return TaskResult{}, err

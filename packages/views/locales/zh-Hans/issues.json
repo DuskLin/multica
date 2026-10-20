@@ -1689,5 +1689,18 @@
   },
   "hover_card": {
     "created_updated": "创建于 {{created}} · 更新于 {{updated}}"
+  },
+  "creation_progress": {
+    "recent_output": "当前显示最近的输出，可打开运行记录查看更早的已捕获日志。",
+    "preparing": "正在准备运行",
+    "waiting_directory": "正在等待工作区",
+    "queued": "等待创建",
+    "initializing": "正在初始化工作区",
+    "creating": "正在创建任务",
+    "failed": "创建已停止",
+    "dismiss": "关闭",
+    "output": "初始化脚本输出",
+    "waiting_output": "正在等待脚本输出...",
+    "reconnecting": "暂时无法更新输出，正在重连..."
   }
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { QuickCreateProgress } from "./quick-create-progress";
 import { useWorkspaceId } from "@multica/core";
 import { useWorkspacePresencePrefetch } from "@multica/core/agents";
 
@@ -10,5 +11,5 @@ import { useWorkspacePresencePrefetch } from "@multica/core/agents";
 export function WorkspacePresencePrefetch() {
   const wsId = useWorkspaceId();
   useWorkspacePresencePrefetch(wsId);
-  return null;
+  return <QuickCreateProgress key={wsId} wsId={wsId} />;
 }

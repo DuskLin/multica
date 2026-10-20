@@ -1755,5 +1755,18 @@
   },
   "hover_card": {
     "created_updated": "a créé {{created}} · mis à jour {{updated}}"
+  },
+  "creation_progress": {
+    "recent_output": "Sortie récente affichée. Ouvrez le journal pour consulter la sortie enregistrée précédemment.",
+    "preparing": "Préparation de l’exécution",
+    "waiting_directory": "En attente de l’espace de travail",
+    "queued": "En attente de création",
+    "initializing": "Initialisation de l’espace de travail",
+    "creating": "Création de la tâche",
+    "failed": "Création arrêtée",
+    "dismiss": "Fermer",
+    "output": "Sortie du script d’initialisation",
+    "waiting_output": "En attente de la sortie du script...",
+    "reconnecting": "Impossible d’actualiser la sortie. Reconnexion..."
   }
 }

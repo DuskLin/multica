@@ -1689,5 +1689,18 @@
   },
   "hover_card": {
     "created_updated": "{{created}}に作成 · {{updated}}に更新"
+  },
+  "creation_progress": {
+    "recent_output": "最近の出力を表示しています。以前の記録は実行ログで確認できます。",
+    "preparing": "実行を準備中",
+    "waiting_directory": "ワークスペースを待機中",
+    "queued": "作成待ち",
+    "initializing": "ワークスペースを初期化中",
+    "creating": "タスクを作成中",
+    "failed": "作成が停止しました",
+    "dismiss": "閉じる",
+    "output": "初期化スクリプトの出力",
+    "waiting_output": "スクリプトの出力を待機中...",
+    "reconnecting": "出力を更新できません。再接続中..."
   }
 }

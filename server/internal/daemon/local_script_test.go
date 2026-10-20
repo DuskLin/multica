@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -28,6 +29,7 @@ func TestRunTaskScriptIsolation(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			source := t.TempDir()
 			body := "printf initialized >> \"$1/initialized.txt\"\n"
+			body += "printf 'init stdout\\n'\n printf 'init stderr\\n' >&2\n"
 			if failInit {
 				body += "exit 7\n"
 			}
@@ -42,7 +44,20 @@ printf '%s\n' '{"type":"system","session_id":"script-session"}'
 printf '%s\n' '{"type":"result","subtype":"success","is_error":false,"session_id":"script-session","result":"done"}'
 `))
 			var starts atomic.Int32
+			var messageMu sync.Mutex
+			var messages []TaskMessageData
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if strings.HasSuffix(r.URL.Path, "/messages") {
+					var body struct {
+						Messages []TaskMessageData `json:"messages"`
+					}
+					if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+						t.Error(err)
+					}
+					messageMu.Lock()
+					messages = append(messages, body.Messages...)
+					messageMu.Unlock()
+				}
 				if strings.HasSuffix(r.URL.Path, "/start") {
 					starts.Add(1)
 				}
@@ -64,6 +79,20 @@ printf '%s\n' '{"type":"result","subtype":"success","is_error":false,"session_id
 				ProjectResources: []ProjectResourceData{{ID: "script-resource", ResourceType: "local_directory", ResourceRef: ref}},
 			}
 			result, err := d.runTask(context.Background(), task, "claude", 0, logger)
+			messageMu.Lock()
+			var initializationOutput string
+			for i, message := range messages {
+				if message.Seq != i+1 {
+					t.Errorf("overlapping message sequence: %+v", messages)
+				}
+				if message.Tool == "Initialization output" {
+					initializationOutput += message.Output
+				}
+			}
+			messageMu.Unlock()
+			if !strings.Contains(initializationOutput, "init stdout\n") || !strings.Contains(initializationOutput, "init stderr\n") {
+				t.Fatalf("initializer stdout/stderr were not reported: %q", initializationOutput)
+			}
 			if failInit {
 				if err == nil || starts.Load() != 0 {
 					t.Fatalf("failed initializer launched agent: starts=%d, err=%v", starts.Load(), err)

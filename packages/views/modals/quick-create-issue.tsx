@@ -13,7 +13,7 @@ import {
   Settings2,
   X as XIcon,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { DialogTitle } from "@multica/ui/components/ui/dialog";
 import {
@@ -84,6 +84,7 @@ import { FileUploadButton } from "@multica/ui/components/common/file-upload-butt
 import { useT } from "../i18n";
 import { matchesPinyin } from "../editor/extensions/pinyin-match";
 import { SourceContextPreviewCard, useSourceContextFailureMessage } from "./source-context-preview";
+import { agentTaskSnapshotKeys } from "@multica/core/agents";
 import { useIssueLimitUpgradePrompt } from "./use-issue-limit-upgrade-prompt";
 
 type ActorSelection =
@@ -125,6 +126,7 @@ export function AgentCreatePanel({
   const workspaceName = useCurrentWorkspace()?.name;
   const workspacePaths = useWorkspacePaths();
   const wsId = useWorkspaceId();
+  const queryClient = useQueryClient();
   const anchorCommentId = typeof data?.anchor_comment_id === "string" ? data.anchor_comment_id : null;
   const sourcePreview = data?.source_context_preview as SourceContextPreview | undefined;
   const sourceContextLoading = data?.source_context_loading === true;
@@ -460,6 +462,7 @@ export function AgentCreatePanel({
             ...(activeAttachmentIds.length > 0 ? { attachment_ids: activeAttachmentIds } : {}),
           });
         }
+        void queryClient.invalidateQueries({ queryKey: agentTaskSnapshotKeys.all(wsId) });
         setLastActor(actor.type, actor.id);
         setLastMode("agent");
         toast.success(t(($) => $.create_issue.agent.toast_sent), {
