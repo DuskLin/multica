@@ -981,7 +981,7 @@ func captureUserSnapshot(gitRoot, envRoot, headSHA string, logger *slog.Logger) 
 // seedSnapshotIndex copies the repository's index to path, reporting whether it
 // got one. Read as a plain file rather than through git: git would want the
 // index lock, and this copy exists precisely to avoid waiting on it.
-func seedSnapshotIndex(gitRoot, path string) (seeded bool) {
+func seedSnapshotIndex(gitRoot, path string) bool {
 	src, err := runGitTrimmed(gitRoot, "rev-parse", "--git-path", "index")
 	if err != nil || src == "" {
 		return false
@@ -1002,19 +1002,16 @@ func seedSnapshotIndex(gitRoot, path string) (seeded bool) {
 	if err != nil {
 		return false
 	}
-	defer func() {
-		if !seeded {
-			_ = os.Remove(path)
-		}
-	}()
 	_, copyErr := io.Copy(out, in)
 	closeErr := out.Close()
-	if copyErr != nil || closeErr != nil {
+	// Git compares file timestamps with the index timestamp to identify racy
+	// same-size edits. Giving the copy a fresh mtime would turn those edits
+	// into apparently clean stat-cache hits, silently omitting user drafts.
+	if copyErr != nil || closeErr != nil || os.Chtimes(path, info.ModTime(), info.ModTime()) != nil {
+		_ = os.Remove(path)
 		return false
 	}
-	// Git uses the index timestamp to detect racy-clean stat entries. Giving
-	// the copy a newer timestamp can silently drop same-size working edits.
-	return os.Chtimes(path, info.ModTime(), info.ModTime()) == nil
+	return true
 }
 
 // snapshotExcludes keeps the daemon's own sidecars out of the user's snapshot.
