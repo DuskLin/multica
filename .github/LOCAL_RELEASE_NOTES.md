@@ -1,5 +1,26 @@
 Self-hosted Multica release built by GitHub Actions.
 
+## v0.6.6-local.1 — 2026-10-20
+
+Changes since `v0.6.5-local.3`.
+
+### Features
+
+- Desktop Settings now lists managed work directories across local profiles, with disk usage, task links, and asynchronous cleanup progress.
+- Completed script work directories can be reclaimed when every repository is recoverable from its remote. A later run initializes the directory again and restores the recorded branches.
+- Quick create shows live script output and initialization progress while preparing a project workspace.
+
+### Improvements
+
+- Cleanup protects active directories and work that cannot be recovered from a remote; offline profiles remain available for inspection.
+- Simplified the landing page and sidebar, removed the GitHub star counter and community prompts, and updated documentation and feedback links.
+- The changelog now includes cumulative local features and fixes alongside upstream releases.
+
+### Fixes
+
+- Centered desktop and PWA icons and regenerated platform icon assets.
+- Task links and status queries in directory management use the verified workspace, including when switching workspaces.
+
 ## Cumulative local changes through v0.6.5-local.3
 
 ### Features

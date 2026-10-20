@@ -523,6 +523,26 @@ export function createEnDict(
     },
     entries: [
       {
+        version: "0.6.6-local.1",
+        date: "2026-10-20",
+        title: "Work directory management, branch recovery, and live setup progress",
+        changes: [],
+        features: [
+          "Desktop Settings now lists managed work directories across local profiles, with disk usage, task links, and asynchronous cleanup progress.",
+          "Completed script work directories can be reclaimed when every repository is recoverable from its remote. A later run initializes the directory again and restores the recorded branches.",
+          "Quick create shows live script output and initialization progress while preparing a project workspace.",
+        ],
+        improvements: [
+          "Cleanup protects active directories and work that cannot be recovered from a remote; offline profiles remain available for inspection.",
+          "Simplified the landing page and sidebar, removed the GitHub star counter and community prompts, and updated documentation and feedback links.",
+          "The changelog now includes cumulative local features and fixes alongside upstream releases.",
+        ],
+        fixes: [
+          "Centered desktop and PWA icons and regenerated platform icon assets.",
+          "Task links and status queries in directory management use the verified workspace, including when switching workspaces.",
+        ],
+      },
+      {
         version: "0.6.5-local.3",
         date: "2026-10-20",
         title: "Cumulative local updates: script workspaces, multi-repository PR sync, and self-hosted clients",
