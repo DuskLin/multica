@@ -4,12 +4,11 @@ import { createLandingDict } from "./dictionary";
 
 describe("createLandingDict", () => {
   it.each([
-    ["en", "/docs"],
-    ["zh-Hans", "/docs/zh"],
-    ["ko", "/docs/ko"],
-    ["ja", "/docs/ja"],
-    // French has no landing copy and reuses English, but its docs exist.
-    ["fr", "/docs/fr"],
+    ["en", "https://multica.ai/docs/zh"],
+    ["zh-Hans", "https://multica.ai/docs/zh"],
+    ["ko", "https://multica.ai/docs/zh"],
+    ["ja", "https://multica.ai/docs/zh"],
+    ["fr", "https://multica.ai/docs/zh"],
   ] as const)("links the %s footer to %s", (locale, docsHref) => {
     const links = createLandingDict(locale, true).footer.groups.resources.links;
     expect(links[0]?.href).toBe(docsHref);

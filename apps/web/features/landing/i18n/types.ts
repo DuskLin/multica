@@ -1,5 +1,5 @@
 import type { SupportedLocale } from "@multica/core/i18n";
-export { docsHrefForLocale } from "@/lib/docs-href";
+export { DOCUMENTATION_URL } from "@multica/core/paths";
 
 export type Locale = SupportedLocale;
 export type LandingDictionaryLocale = "en" | "zh" | "ko" | "ja";

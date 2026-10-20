@@ -13,6 +13,12 @@ vi.mock("../platform/local-directory", () => ({
   isDesktopShell: vi.fn(() => false),
 }));
 
+vi.mock("../navigation", () => ({
+  useNavigation: () => ({
+    getShareableUrl: (path: string) => `https://selfhost.example${path}`,
+  }),
+}));
+
 // The UI language the mocked i18n instance reports; drives locale-aware links.
 const i18nState = vi.hoisted(() => ({ language: "en" }));
 
@@ -108,10 +114,12 @@ describe("HelpLauncher", () => {
   });
 
   it.each([
-    ["en", "https://multica.ai/docs"],
+    ["en", "https://multica.ai/docs/zh"],
     ["zh-Hans", "https://multica.ai/docs/zh"],
-    ["fr", "https://multica.ai/docs/fr"],
-  ])("links Docs to the %s docs", (language, href) => {
+    ["fr", "https://multica.ai/docs/zh"],
+    ["ja", "https://multica.ai/docs/zh"],
+    ["ko", "https://multica.ai/docs/zh"],
+  ])("links Docs to official Chinese documentation for %s", (language, href) => {
     i18nState.language = language;
     render(<HelpLauncher />);
     expect(screen.getByRole("link", { name: /Docs/ })).toHaveAttribute(
@@ -119,6 +127,29 @@ describe("HelpLauncher", () => {
       href,
     );
   });
+
+  it.each([false, true])(
+    "uses deployment links and repository feedback (desktop: %s)",
+    (desktop) => {
+      vi.mocked(isDesktopShell).mockReturnValue(desktop);
+      i18nState.language = "zh-Hans";
+      render(<HelpLauncher />);
+      const origin = desktop ? "https://selfhost.example" : "";
+      expect(screen.getByRole("link", { name: /Docs/ })).toHaveAttribute(
+        "href",
+        "https://multica.ai/docs/zh",
+      );
+      expect(screen.getByRole("link", { name: /Change log/ })).toHaveAttribute(
+        "href",
+        `${origin}/changelog`,
+      );
+      expect(screen.getByRole("link", { name: /Feedback/ })).toHaveAttribute(
+        "href",
+        "https://github.com/DuskLin/multica",
+      );
+      expect(screen.queryByText(/Discord/)).not.toBeInTheDocument();
+    },
+  );
 
   // AppSidebar is shared: apps/desktop renders the same component tree. Without
   // this gate the desktop app would offer to download the desktop app.

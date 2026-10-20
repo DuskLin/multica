@@ -7,7 +7,6 @@ import { cn } from "@multica/ui/lib/utils";
 import { useScrollFade } from "@multica/ui/hooks/use-scroll-fade";
 import { AppLink, useNavigation } from "../navigation";
 import { HelpLauncher } from "./help-launcher";
-import { JoinDiscordCard } from "./join-discord-card";
 import {
   DndContext,
   PointerSensor,
@@ -927,10 +926,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
               );
             })}
           </SidebarMenu>
-          {/* Discord fills the strip while visible; once dismissed, help
-              aligns with the navigation icons above. */}
           <div className="flex items-center gap-1">
-            <JoinDiscordCard />
             <HelpLauncher />
           </div>
         </SidebarFooter>

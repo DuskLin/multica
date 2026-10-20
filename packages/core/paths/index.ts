@@ -5,6 +5,7 @@ export {
 } from "./paths";
 export type { WorkspacePaths } from "./paths";
 export { RESERVED_SLUGS, isReservedSlug } from "./reserved-slugs";
+export { DOCUMENTATION_URL } from "./external";
 export {
   WORKSPACE_PAGES,
   DEFAULT_ROUTE_ICON_NAME,

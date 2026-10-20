@@ -8,11 +8,10 @@ import { LandingFooter } from "@/features/landing/components/landing-footer";
 import { Screenshot } from "@/features/landing/components/mdx/screenshot";
 import { getUseCasePageForLocale } from "@/lib/use-cases-source";
 import {
-  docsHrefForLocale,
+  DOCUMENTATION_URL,
   getUseCaseLocale,
   useCaseText,
 } from "@/lib/use-cases-i18n";
-import type { SupportedLocale } from "@multica/core/i18n";
 
 type Params = { slug: string };
 
@@ -97,8 +96,8 @@ const CTA_BLOCK_TRIGGER = new RegExp(`^\\[${CTA_SECONDARY_PREFIX}?CTA[::]`);
 const CTA_LABEL_STRIP = new RegExp(`^${CTA_SECONDARY_PREFIX}?CTA[::]\\s*`);
 const CTA_PRIMARY = /^CTA[::]/;
 
-function createSmartParagraph(locale: SupportedLocale) {
-  const secondaryHref = docsHrefForLocale(locale);
+function createSmartParagraph() {
+  const secondaryHref = DOCUMENTATION_URL;
   return function SmartParagraph(props: ComponentPropsWithoutRef<"p">) {
     const text = nodeToString(props.children).trim();
 
@@ -135,8 +134,8 @@ function createSmartParagraph(locale: SupportedLocale) {
   };
 }
 
-function createMdxComponents(locale: SupportedLocale) {
-  const SmartParagraph = createSmartParagraph(locale);
+function createMdxComponents() {
+  const SmartParagraph = createSmartParagraph();
   return {
     Screenshot,
     h2: (props: ComponentPropsWithoutRef<"h2">) => (
@@ -215,7 +214,7 @@ export default async function UseCasePage(props: { params: Promise<Params> }) {
   const toc = ((page.data as { toc?: TocItem[] }).toc ?? []).filter(
     (item) => item.depth === 2 || item.depth === 3,
   );
-  const mdxComponents = createMdxComponents(locale);
+  const mdxComponents = createMdxComponents();
 
   return (
     <>

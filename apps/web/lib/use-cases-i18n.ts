@@ -1,5 +1,5 @@
 import type { SupportedLocale } from "@multica/core/i18n";
-export { docsHrefForLocale } from "@/lib/docs-href";
+export { DOCUMENTATION_URL } from "@multica/core/paths";
 import { getRequestLocale } from "@/lib/request-locale";
 
 export const getUseCaseLocale = getRequestLocale;
