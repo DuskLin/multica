@@ -2077,6 +2077,13 @@ func runDaemonDiskUsageAggregate(cmd *cobra.Command, byWorkspace bool, top int, 
 // (e.g. when MULTICA_WORKSPACES_ROOT pins every profile to one directory) are
 // collapsed to a single entry.
 func enumerateDiskUsageRoots() ([]daemon.DiskUsageRoot, error) {
+	return enumerateWorkspaceRoots(true)
+}
+
+// enumerateWorkspaceRoots optionally retains profiles sharing one root. Local
+// management needs each profile to find an online daemon even when another
+// profile pointing at that same directory is offline.
+func enumerateWorkspaceRoots(deduplicate bool) ([]daemon.DiskUsageRoot, error) {
 	out := make([]daemon.DiskUsageRoot, 0)
 
 	if root, err := resolveWorkspacesRootForProfile("", ""); err == nil {
@@ -2100,7 +2107,7 @@ func enumerateDiskUsageRoots() ([]daemon.DiskUsageRoot, error) {
 	sort.Strings(names)
 	for _, name := range names {
 		root, err := resolveWorkspacesRootForProfile(name, "")
-		if err != nil || containsDiskUsageRoot(out, root) {
+		if err != nil || (deduplicate && containsDiskUsageRoot(out, root)) {
 			continue
 		}
 		// Skip profile roots that were never created on disk — a configured

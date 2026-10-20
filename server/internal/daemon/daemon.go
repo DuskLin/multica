@@ -432,11 +432,13 @@ type repoCacheBackend interface {
 
 // Daemon is the local agent runtime that polls for and executes tasks.
 type Daemon struct {
-	cfg        Config
-	client     *Client
-	repoCache  repoCacheBackend
-	skillCache *SkillBundleCache
-	logger     *slog.Logger
+	workdirOperations sync.Mutex // serializes manual and scheduled cleanup
+	workdirJobs       workdirJobQueue
+	cfg               Config
+	client            *Client
+	repoCache         repoCacheBackend
+	skillCache        *SkillBundleCache
+	logger            *slog.Logger
 
 	// terminalReports is the durable outbox for complete/fail callbacks. The
 	// sender hook is production-wired through Client and overridable in focused
@@ -6190,6 +6192,9 @@ func (d *Daemon) acquireLocalDirectoryLockIfNeeded(ctx context.Context, task Tas
 		} else {
 			releasePath := release
 			release = func() { releaseClaim(); releasePath() }
+			if registerErr := execenv.RegisterLocalScriptSource(d.cfg.WorkspacesRoot, localScriptParamsForTask(task, assignment)); registerErr != nil {
+				taskLog.Warn("local_directory: script GC registration failed", "error", registerErr)
+			}
 		}
 	}
 	if err != nil {

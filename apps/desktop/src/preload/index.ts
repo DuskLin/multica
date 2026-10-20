@@ -1,3 +1,4 @@
+import type { WorkdirCommand, WorkdirResponse } from "@multica/core/api/workdirs";
 import { contextBridge, ipcRenderer } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
 import type { RuntimeConfigResult } from "../shared/runtime-config";
@@ -251,6 +252,7 @@ type DaemonReauthResult =
   | { ok: false; reason: "transient"; message: string };
 
 const daemonAPI = {
+  workdirs: (command: WorkdirCommand): Promise<WorkdirResponse> => ipcRenderer.invoke("daemon:workdirs", command),
   start: (): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke("daemon:start"),
   stop: (): Promise<{ success: boolean; error?: string }> =>

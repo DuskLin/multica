@@ -11,6 +11,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/multica-ai/multica/server/internal/daemon/processtree"
 )
 
 // PreparationHelperArg selects the private execution-environment helper mode
@@ -135,7 +137,8 @@ func runPreparationProcess(ctx context.Context, command []string, request prepar
 	}
 
 	cmd := exec.Command(command[0], command[1:]...)
-	controller, err := newPreparationProcessController(cmd)
+	cleanupScriptChildren := request.Prepare != nil && request.Prepare.LocalScript != nil
+	controller, err := newPreparationProcessController(cmd, cleanupScriptChildren)
 	if err != nil {
 		return nil, fmt.Errorf("execenv: create preparation process controller: %w", err)
 	}
@@ -183,7 +186,10 @@ func runPreparationProcess(ctx context.Context, command []string, request prepar
 	writeErr := <-writeDone
 	finishErr := controller.finish()
 	if lifecycleErr := errors.Join(stopErr, finishErr); lifecycleErr != nil {
-		return nil, fmt.Errorf("execenv: stop preparation process tree: %w", lifecycleErr)
+		if cleanupScriptChildren {
+			lifecycleErr = errors.Join(lifecycleErr, blockLocalScriptWorkspace(*request.Prepare.LocalScript))
+		}
+		return nil, fmt.Errorf("execenv: %w: %w", processtree.ErrCleanupUnconfirmed, lifecycleErr)
 	}
 	// The context cause is the daemon's stable failure contract. Prefer it over
 	// the platform-specific process exit text ("signal: killed", exit 1, ...).

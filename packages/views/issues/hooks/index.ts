@@ -1,4 +1,5 @@
 export { useIssueTimeline } from "./use-issue-timeline";
+export { useStatusLabel as useIssueStatusLabel } from "../utils/status-label";
 export { useIssueReactions } from "./use-issue-reactions";
 export { useIssueSubscribers } from "./use-issue-subscribers";
 export { useIssueDetailScrollRestore } from "./use-issue-detail-scroll-restore";

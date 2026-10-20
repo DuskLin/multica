@@ -32,6 +32,7 @@ Use `Makefile`, workspace `package.json` files, and `pnpm-workspace.yaml` for cu
 
 - Use the checkout's managed environment: `make up`, `make status`, `make down`. `make down` preserves data; `make destroy` removes the environment and its data.
 - 本地 GitHub CLI PR 同步通过 `MULTICA_LOCAL_PR_SYNC_WORKSPACE_ID` 为单个工作区显式启用；详见 `.env.example` 和 GitHub 集成文档。保留回环地址及云端配置检查，测试使用模拟 CLI 可执行文件。
+- 脚本工作目录回收与执行必须共享目录锁；仅对已完成任务、归属有效且所有子项目成果均可从远端恢复的目录执行回收。恢复须先运行初始化脚本，再切回记录的子项目分支，成功后才能发布初始化完成标记。详见项目资源文档；测试使用临时本地远端仓库。
 - Worktrees share PostgreSQL but have isolated databases/ports. Use the environment scripts and `.env.worktree`; do not copy the main checkout's `.env` or manually create a database through an assumed PostgreSQL instance.
 - Regenerate sqlc with `make sqlc` after SQL changes.
 - Run the narrowest useful checks while iterating, then broaden when risk warrants it. Report what actually ran and any skipped checks.
@@ -87,6 +88,9 @@ In `server/internal/handler/`, distinguish UUID sources before using them in wri
 Workspace-scoped queries filter by `workspace_id`; membership gates access and `X-Workspace-ID` selects the workspace. Assignees are polymorphic: interpret `assignee_id` together with `assignee_type`.
 
 ## Desktop Rules
+
+- 桌面端「设置 → 工作目录」通过显式的 `daemon workdirs --all-profiles` 管理本机各配置的受管目录；这是仅限存储管理的跨配置入口，不得扩展到生命周期控制或凭据同步。回收和删除由对应在线 daemon 鉴权执行，拒绝任意路径、运行占用及无法恢复的成果；离线目录仅展示。列表和操作结果由 TanStack Query 管理。显式清理由 daemon 排队执行并提供独立进度查询；受理后关闭确认弹窗，仅在删除成功后移除目录行并后台刷新。进度查询不得触发磁盘全量扫描，单项删除只统计目标目录；离开设置页不取消任务。
+- 工作目录的任务链接仅导航到当前服务中经鉴权核实的资源；通过统一路径构建器和桌面导航适配器切换所属工作区，不得用目录名称推断任务或跨服务拼接链接。
 
 - Workspace session routes are tab destinations. Pre-workspace one-shot flows (create workspace, accept invite) use `WindowOverlay` in `apps/desktop/src/renderer/src/stores/window-overlay-store.ts`, not new routes. Stale workspace tabs heal by dropping stale tab groups.
 - Workspace route layouts own `setCurrentWorkspace(slug, uuid)` from `@multica/core/platform`; leaving workspace context calls `setCurrentWorkspace(null, null)`.

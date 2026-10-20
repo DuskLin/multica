@@ -64,6 +64,9 @@ func (d *Daemon) gcLoop(ctx context.Context) {
 
 // gcStats accumulates byte counts and per-pattern hit counts for one GC cycle.
 type gcStats struct {
+	progressCtx     context.Context
+	progress        func(WorkdirActionResult)
+	problems        []WorkdirResult
 	cleaned         int // whole task dirs removed by a parent-lifecycle or completed-task policy
 	orphaned        int // whole task dirs removed (no meta / unreachable issue)
 	skipped         int // task dirs left untouched
@@ -78,23 +81,33 @@ type gcStats struct {
 	repoCachesReclaimed           int            // bare repo caches under .repos evicted past their TTL
 	taskTempDirsReclaimed         int            // per-task temp dirs under the temp base reclaimed after their owning execution ended
 	taskRootIndexEntriesReclaimed int            // abandoned stable-root records and unpublished entries reclaimed past the orphan TTL
+	scriptWorkspacesReclaimed     int            // completed issue script directories backed by verified remote branches
 	bytesReclaimed                int64          // total bytes freed in this cycle
 	byPattern                     map[string]int // configured basename or managed path label -> reclaim count
 }
 
 // runGC performs a single GC scan across all workspace directories.
 func (d *Daemon) runGC(ctx context.Context) {
+	d.workdirOperations.Lock()
+	defer d.workdirOperations.Unlock()
+	d.runGCCycle(ctx, &gcStats{byPattern: map[string]int{}})
+}
+
+// runGCCycle shares the existing policy between scheduled and requested scans.
+func (d *Daemon) runGCCycle(ctx context.Context, stats *gcStats) {
+	execenv.ReportWorkdirProgress(ctx, "locating", d.cfg.WorkspacesRoot, 0)
 	root := d.cfg.WorkspacesRoot
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return
 		}
+		stats.problems = append(stats.problems, WorkdirResult{root, err.Error()})
 		d.logger.Warn("gc: read workspaces root failed", "error", err)
 		return
 	}
 
-	stats := &gcStats{byPattern: map[string]int{}}
+	d.gcLocalScriptWorkspaces(ctx, stats)
 	for _, wsEntry := range entries {
 		// Skip every daemon-internal dot directory, not just .repos. A
 		// workspace directory is always a UUID, so a dot-prefixed entry is one
@@ -115,6 +128,7 @@ func (d *Daemon) runGC(ctx context.Context) {
 	// reaches ClaimEnvRoot, no task directory exists for the normal GC walk to
 	// reclaim. Bound those records separately, but only after the orphan grace
 	// period and an authoritative terminal/not-found task check.
+	execenv.ReportWorkdirProgress(ctx, "maintenance", root, 0)
 	rootRecordsRemoved, rootRecordsErr := execenv.PruneTaskRootIndex(root, d.cfg.GCOrphanTTL, time.Now(), func(_ string, taskID string) bool {
 		if ctx.Err() != nil || d.client == nil {
 			return false
@@ -175,7 +189,7 @@ func (d *Daemon) runGC(ctx context.Context) {
 		}
 	}
 
-	if stats.cleaned > 0 || stats.orphaned > 0 || stats.artifactDirs > 0 || stats.storesReclaimed > 0 || stats.hermesMemoryStoresReclaimed > 0 || stats.hermesSessionStoresReclaimed > 0 || stats.repoCachesReclaimed > 0 || stats.taskTempDirsReclaimed > 0 || stats.taskRootIndexEntriesReclaimed > 0 {
+	if stats.cleaned > 0 || stats.orphaned > 0 || stats.artifactDirs > 0 || stats.storesReclaimed > 0 || stats.hermesMemoryStoresReclaimed > 0 || stats.hermesSessionStoresReclaimed > 0 || stats.repoCachesReclaimed > 0 || stats.taskTempDirsReclaimed > 0 || stats.taskRootIndexEntriesReclaimed > 0 || stats.scriptWorkspacesReclaimed > 0 {
 		d.logger.Info("gc: cycle complete",
 			"cleaned", stats.cleaned,
 			"orphaned", stats.orphaned,
@@ -188,6 +202,7 @@ func (d *Daemon) runGC(ctx context.Context) {
 			"repo_caches_reclaimed", stats.repoCachesReclaimed,
 			"task_temp_dirs_reclaimed", stats.taskTempDirsReclaimed,
 			"task_root_index_entries_reclaimed", stats.taskRootIndexEntriesReclaimed,
+			"script_workspaces_reclaimed", stats.scriptWorkspacesReclaimed,
 			"bytes_reclaimed", stats.bytesReclaimed,
 			"by_pattern", stats.byPattern,
 		)
@@ -322,6 +337,12 @@ func (d *Daemon) gcWorkspaceIssues(ctx context.Context, workspaceID string, cand
 // atomically reserves the env root because a task can start while the server
 // reconciliation request is in flight.
 func (d *Daemon) applyGCAction(ctx context.Context, taskDir string, action gcAction, stats *gcStats) int {
+	execenv.ReportWorkdirProgress(stats.progressCtx, "checking", taskDir, 0)
+	defer func() {
+		if stats.progress != nil {
+			stats.progress(workdirGCResult(stats))
+		}
+	}()
 	if action != gcActionSkip {
 		if _, err := d.gcTaskDirOwner(taskDir); err != nil {
 			d.logger.Warn("gc: refusing to mutate unowned task directory", "dir", taskDir, "error", err)
@@ -344,7 +365,7 @@ func (d *Daemon) applyGCAction(ctx context.Context, taskDir string, action gcAct
 	}
 	switch action {
 	case gcActionClean:
-		bytes, removed := d.cleanTaskDir(taskDir)
+		bytes, removed := d.cleanTaskDirContext(stats.progressCtx, taskDir)
 		if !removed {
 			stats.skipped++
 			return 0
@@ -353,7 +374,7 @@ func (d *Daemon) applyGCAction(ctx context.Context, taskDir string, action gcAct
 		stats.bytesReclaimed += bytes
 		return 1
 	case gcActionOrphan:
-		bytes, removed := d.cleanTaskDir(taskDir)
+		bytes, removed := d.cleanTaskDirContext(stats.progressCtx, taskDir)
 		if !removed {
 			stats.skipped++
 			return 0
@@ -362,10 +383,12 @@ func (d *Daemon) applyGCAction(ctx context.Context, taskDir string, action gcAct
 		stats.bytesReclaimed += bytes
 		return 1
 	case gcActionCleanArtifacts:
+		execenv.ReportWorkdirProgress(stats.progressCtx, "deleting", taskDir, 0)
 		removed, bytes, perPattern := d.cleanTaskArtifacts(ctx, taskDir, d.cfg.GCArtifactPatterns)
 		recordArtifactCleanup(stats, removed, bytes, perPattern)
 		stats.skipped++ // task dir itself preserved
 	case gcActionCleanManagedArtifacts:
+		execenv.ReportWorkdirProgress(stats.progressCtx, "deleting", taskDir, 0)
 		removed, bytes, perPattern := d.cleanManagedTaskArtifacts(taskDir)
 		recordArtifactCleanup(stats, removed, bytes, perPattern)
 		stats.skipped++ // task dir itself preserved
@@ -895,6 +918,12 @@ func (d *Daemon) gcTaskDirOwner(taskDir string) (*execenv.EnvRootOwner, error) {
 // reclaimed bytes, and returns that count for the cycle summary. A failed or
 // refused removal reports removed=false.
 func (d *Daemon) cleanTaskDir(taskDir string) (bytes int64, removed bool) {
+	return d.cleanTaskDirContext(nil, taskDir)
+}
+
+// cleanTaskDirContext reports deletion progress for explicit background jobs.
+func (d *Daemon) cleanTaskDirContext(ctx context.Context, taskDir string) (bytes int64, removed bool) {
+	execenv.ReportWorkdirProgress(ctx, "measuring", taskDir, 0)
 	// Measure first, prove ownership second. dirSize walks the entire tree,
 	// which on a large task directory takes long enough for the validated
 	// directory to be replaced underneath us — checking before that walk would
@@ -906,6 +935,7 @@ func (d *Daemon) cleanTaskDir(taskDir string) (bytes int64, removed bool) {
 		d.logger.Warn("gc: refusing to remove unowned task directory", "dir", taskDir, "error", ownerErr)
 		return 0, false
 	}
+	execenv.ReportWorkdirProgress(ctx, "deleting", taskDir, 0)
 	if err := os.RemoveAll(taskDir); err != nil {
 		d.logger.Warn("gc: remove task dir failed", "dir", taskDir, "error", err)
 		return 0, false

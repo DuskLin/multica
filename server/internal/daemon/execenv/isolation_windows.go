@@ -29,7 +29,7 @@ type jobObjectBasicAccountingInformation struct {
 	TotalTerminatedProcesses  uint32
 }
 
-func newPreparationProcessController(_ *exec.Cmd) (*preparationProcessController, error) {
+func newPreparationProcessController(_ *exec.Cmd, _ bool) (*preparationProcessController, error) {
 	job, err := windows.CreateJobObject(nil, nil)
 	if err != nil {
 		return nil, err

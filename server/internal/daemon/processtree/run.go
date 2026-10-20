@@ -13,6 +13,10 @@ import (
 
 const gracefulStopTimeout = time.Second
 
+// ErrCleanupUnconfirmed means callers must not reuse mutable resources that a
+// surviving helper could still access, even though the command has returned.
+var ErrCleanupUnconfirmed = errors.New("process-tree cleanup could not be confirmed")
+
 // CombinedOutput runs an unstarted command and returns its combined output.
 // Cancellation terminates the entire process tree, waits for it to disappear,
 // and returns the context cause rather than a platform-specific exit status.
@@ -83,7 +87,7 @@ func run(ctx context.Context, cmd *exec.Cmd, waitDelay time.Duration) error {
 	}
 	finishErr := controller.finish(cmd)
 	if lifecycleErr := errors.Join(stopErr, finishErr); lifecycleErr != nil {
-		return fmt.Errorf("stop process tree: %w", lifecycleErr)
+		return fmt.Errorf("%w: %w", ErrCleanupUnconfirmed, lifecycleErr)
 	}
 	if cancelled {
 		return context.Cause(ctx)
