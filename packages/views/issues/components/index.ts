@@ -1,4 +1,6 @@
 export { StatusIcon } from "./status-icon";
+export { TaskStatusIcon } from "./task-status-icon";
+export { useStatusLabel as useTaskRunStatusLabel } from "./task-run-labels";
 export { StatusHeading } from "./status-heading";
 export { PriorityIcon } from "./priority-icon";
 export { StatusPicker, PriorityPicker, StagePicker, AssigneePicker, canAssignAgent, StartDatePicker, DueDatePicker, LabelPicker } from "./pickers";

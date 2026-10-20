@@ -770,6 +770,7 @@ func (c *Client) ReportLocalSkillImportResult(ctx context.Context, runtimeID, re
 type WorkspaceInfo struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
+	Slug string `json:"slug"`
 }
 
 // RenewTokenResponse mirrors handler.RenewPATResponse — kept loose (string +
@@ -1325,12 +1326,20 @@ func (c *Client) getJSON(ctx context.Context, path string, respBody any) error {
 // the Remote MCP broker so its short-lived daemon token cannot replace or race
 // the client's long-lived PAT used by concurrent control-plane requests.
 func (c *Client) getJSONWithToken(ctx context.Context, path, token string, respBody any) error {
+	return c.getJSONWithWorkspace(ctx, path, token, "", respBody)
+}
+
+// getJSONWithWorkspace scopes resource reads without changing shared client state.
+func (c *Client) getJSONWithWorkspace(ctx context.Context, path, token, workspaceID string, respBody any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
 	if err != nil {
 		return err
 	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	if workspaceID != "" {
+		req.Header.Set("X-Workspace-ID", workspaceID)
 	}
 	c.setIdentityHeaders(req)
 

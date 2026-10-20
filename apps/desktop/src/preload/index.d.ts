@@ -1,3 +1,4 @@
+import type { WorkdirCommand, WorkdirResponse } from "@multica/core/api/workdirs";
 import { ElectronAPI } from "@electron-toolkit/preload";
 import type { RuntimeConfigResult } from "../shared/runtime-config";
 import type { NavigationGesture } from "../shared/navigation-gestures";
@@ -128,6 +129,7 @@ type DaemonReauthResult =
   | { ok: false; reason: "transient"; message: string };
 
 interface DaemonAPI {
+  workdirs: (command: WorkdirCommand) => Promise<WorkdirResponse>;
   start: () => Promise<{ success: boolean; error?: string }>;
   stop: () => Promise<{ success: boolean; error?: string }>;
   restart: () => Promise<{ success: boolean; error?: string }>;

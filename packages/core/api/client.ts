@@ -4278,9 +4278,17 @@ export class ApiClient {
 
   // Issue status catalog (MUL-6243). Reads are open to any workspace member;
   // the mutations below are owner/admin only and return 403 otherwise.
-  async listIssueStatuses(includeArchived = false): Promise<ListIssueStatusesResponse> {
+  /**
+   * Read a status catalog, optionally targeting a workspace outside the current route.
+   * @param includeArchived Include retired statuses still used by existing issues.
+   * @param workspaceId Explicit workspace UUID; empty keeps the current route scope.
+   * @returns The validated status catalog.
+   */
+  async listIssueStatuses(includeArchived = false, workspaceId = ""): Promise<ListIssueStatusesResponse> {
     const query = includeArchived ? "?include_archived=true" : "";
-    const raw = await this.fetch<unknown>(`/api/issue-statuses${query}`);
+    const raw = await this.fetch<unknown>(`/api/issue-statuses${query}`, {
+      headers: workspaceId ? { "X-Workspace-Slug": "", "X-Workspace-ID": workspaceId } : {},
+    });
     return parseWithFallback(raw, ListIssueStatusesResponseSchema, EMPTY_LIST_ISSUE_STATUSES_RESPONSE, {
       endpoint: "GET /api/issue-statuses",
     });

@@ -7,19 +7,31 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
+	"time"
 )
 
-type preparationProcessController struct{}
+const (
+	preparationCleanupTimeout = 5 * time.Second
+	preparationCleanupPoll    = 10 * time.Millisecond
+)
 
-func newPreparationProcessController(cmd *exec.Cmd) (*preparationProcessController, error) {
+type preparationProcessController struct {
+	pid             int
+	cleanupChildren bool
+}
+
+func newPreparationProcessController(cmd *exec.Cmd, cleanupChildren bool) (*preparationProcessController, error) {
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = &syscall.SysProcAttr{}
 	}
 	cmd.SysProcAttr.Setpgid = true
-	return &preparationProcessController{}, nil
+	return &preparationProcessController{cleanupChildren: cleanupChildren}, nil
 }
 
-func (*preparationProcessController) attach(_ *exec.Cmd) error { return nil }
+func (controller *preparationProcessController) attach(cmd *exec.Cmd) error {
+	controller.pid = cmd.Process.Pid
+	return nil
+}
 
 func (*preparationProcessController) stop(cmd *exec.Cmd) error {
 	if cmd.Process == nil {
@@ -35,5 +47,23 @@ func (*preparationProcessController) stop(cmd *exec.Cmd) error {
 	return err
 }
 
-func (*preparationProcessController) finish() error { return nil }
-func (*preparationProcessController) close()        {}
+// finish reaps surviving same-group children even when the helper returned an
+// ordinary error. A failed Git transport must not outlive the workspace lock.
+func (controller *preparationProcessController) finish() error {
+	if controller.pid == 0 || !controller.cleanupChildren {
+		return nil
+	}
+	if err := syscall.Kill(-controller.pid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
+		return err
+	}
+	deadline := time.Now().Add(preparationCleanupTimeout)
+	for time.Now().Before(deadline) {
+		if err := syscall.Kill(-controller.pid, 0); errors.Is(err, syscall.ESRCH) {
+			return nil
+		}
+		time.Sleep(preparationCleanupPoll)
+	}
+	return errors.New("preparation process group still has live descendants")
+}
+
+func (*preparationProcessController) close() {}

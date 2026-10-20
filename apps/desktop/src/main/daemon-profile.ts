@@ -7,8 +7,10 @@ export const DEFAULT_HEALTH_PORT = 19514;
 /**
  * Desktop owns only `~/.multica/profiles/desktop-<host>/`. The default profile
  * at `~/.multica/` — config, daemon log, and health port 19514 — belongs to the
- * user's terminal CLI and must never be read, written, probed, or passed to the
- * bundled CLI.
+ * user's terminal CLI and must never be used by Desktop lifecycle or credential
+ * synchronization. The explicit Work directories page is the sole exception:
+ * its `daemon workdirs --all-profiles` command inventories local profiles and
+ * requests authenticated cleanup without changing their config or lifecycle.
  *
  * Callers signal "target API URL not known yet" with `null`, never with an
  * empty name, so there is no value that can quietly resolve to the default
@@ -23,7 +25,7 @@ export function assertResolvedProfile(profile: string): void {
 }
 
 // Desktop owns a dedicated CLI profile named after the target API host, so it
-// never reads or writes the user's hand-configured profiles. Profile dir:
+// never changes the user's hand-configured profiles. Profile dir:
 //   ~/.multica/profiles/desktop-<host>/
 export function deriveProfileName(targetUrl: string): string {
   try {

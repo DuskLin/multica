@@ -1,3 +1,4 @@
+import { runWorkdirCommand } from "./workdir-manager";
 import { app, ipcMain, BrowserWindow, shell } from "electron";
 import { execFile } from "child_process";
 import {
@@ -1381,6 +1382,11 @@ export function setupDaemonManager(
     return lifecycleOperations.runForeground(() => restartDaemon());
   });
   ipcMain.handle("daemon:get-status", () => fetchHealth());
+  ipcMain.handle("daemon:workdirs", async (_event, input: unknown) => {
+    const binary = await resolveCliBinary();
+    if (!binary) throw new Error("Install or update the local daemon first");
+    return runWorkdirCommand(binary, desktopSpawnEnv(), input);
+  });
   ipcMain.handle("daemon:probe-runtimes", () => probeLocalRuntimes());
   // The host's OS name, available regardless of daemon state. The Runtimes
   // page uses it as a fallback identity for "this machine" when no

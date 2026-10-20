@@ -32,7 +32,7 @@ export function issueStatusListOptions(wsId: string) {
     // keep their real name, color and category. Dropping archived rows here
     // would degrade them to a raw key with a guessed category. Pickers use
     // `activeStatuses`, which excludes them. (MUL-6243)
-    queryFn: () => api.listIssueStatuses(true),
+    queryFn: () => api.listIssueStatuses(true, wsId),
     select: (data) => data.statuses,
     // The catalog changes only when an admin edits it, which is rare, so a
     // generous stale time keeps this off the critical path of every render

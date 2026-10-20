@@ -17,7 +17,8 @@ import (
 const localScriptStateDirName = ".multica-script"
 
 // LocalScriptParams configures a user-owned Bash initializer. The script runs
-// once per workspace and issue/chat, receiving an empty destination as $1.
+// once per workspace and issue/chat, or again after issue GC, receiving an
+// empty destination as $1.
 type LocalScriptParams struct {
 	LocalPath     string
 	InitScript    string
@@ -116,8 +117,12 @@ func ClaimLocalScriptWorkspace(params LocalScriptParams) (func(), error) {
 		}
 		return nil, fmt.Errorf("local_directory script: workspace is in use by another daemon; retry after it finishes: %s", workDir)
 	}
+	if err := checkLocalScriptBlocked(workDir); err != nil {
+		_ = lock.Close()
+		return nil, err
+	}
 	var once sync.Once
-	return func() { once.Do(func() { _ = lock.Close() }) }, nil
+	return func() { once.Do(func() { releaseLocalScriptLock(workDir, lock) }) }, nil
 }
 
 // prepareLocalScript runs inside the killable preparation helper. Its process
@@ -127,6 +132,9 @@ func ClaimLocalScriptWorkspace(params LocalScriptParams) (func(), error) {
 func prepareLocalScript(params LocalScriptParams, envRoot string) (string, error) {
 	workDir, err := params.WorkspacePath()
 	if err != nil {
+		return "", err
+	}
+	if err := checkLocalScriptBlocked(workDir); err != nil {
 		return "", err
 	}
 	source := filepath.Dir(filepath.Dir(workDir))
@@ -207,7 +215,10 @@ func prepareLocalScript(params LocalScriptParams, envRoot string) (string, error
 	if err != nil || !actual.IsDir() || !os.SameFile(original, actual) {
 		return "", fmt.Errorf("local_directory script: initializer replaced or removed the destination %s; refusing to run", workDir)
 	}
-	if err := os.WriteFile(readyPath, ownerRecord, 0o600); err != nil {
+	if err := restoreLocalScriptBranches(workDir, owner); err != nil {
+		return "", fmt.Errorf("local_directory script: branch recovery failed; workspace preserved at %s: %w", workDir, err)
+	}
+	if err := writeScriptRecord(readyPath, ownerRecord); err != nil {
 		return "", fmt.Errorf("local_directory script: record initialized workspace %s: %w", workDir, err)
 	}
 	return workDir, nil
