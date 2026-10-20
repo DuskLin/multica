@@ -1689,5 +1689,18 @@
   },
   "hover_card": {
     "created_updated": "{{created}} 생성 · {{updated}} 수정됨"
+  },
+  "creation_progress": {
+    "recent_output": "최근 출력입니다. 이전에 수집된 출력은 실행 기록에서 확인할 수 있습니다.",
+    "preparing": "실행 준비 중",
+    "waiting_directory": "워크스페이스 대기 중",
+    "queued": "생성 대기 중",
+    "initializing": "워크스페이스 초기화 중",
+    "creating": "태스크 생성 중",
+    "failed": "생성이 중지됨",
+    "dismiss": "닫기",
+    "output": "초기화 스크립트 출력",
+    "waiting_output": "스크립트 출력 대기 중...",
+    "reconnecting": "출력을 새로 고칠 수 없습니다. 다시 연결 중..."
   }
 }

@@ -1755,5 +1755,18 @@
   },
   "hover_card": {
     "created_updated": "created {{created}} · updated {{updated}}"
+  },
+  "creation_progress": {
+    "recent_output": "Showing recent output. Open the transcript to see earlier captured output.",
+    "preparing": "Preparing run",
+    "waiting_directory": "Waiting for workspace",
+    "queued": "Queued for creation",
+    "initializing": "Initializing workspace",
+    "creating": "Creating issue",
+    "failed": "Creation stopped",
+    "dismiss": "Dismiss",
+    "output": "Initialization script output",
+    "waiting_output": "Waiting for script output...",
+    "reconnecting": "Unable to refresh output. Reconnecting..."
   }
 }

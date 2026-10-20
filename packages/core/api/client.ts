@@ -2764,7 +2764,8 @@ export class ApiClient {
   // derivation; one fetch backs every per-agent presence read in the app.
   // Workspace is resolved server-side from the X-Workspace-Slug header.
   async getAgentTaskSnapshot(): Promise<AgentTask[]> {
-    return this.fetch(`/api/agent-task-snapshot`);
+    const raw = await this.fetch<unknown>(`/api/agent-task-snapshot`);
+    return parseWithFallback<AgentTask[]>(raw, AgentTaskListSchema, [], { endpoint: "GET /api/agent-task-snapshot" });
   }
 
   // Independent workspace-level projection. Unlike the task snapshot, this

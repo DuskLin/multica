@@ -731,7 +731,7 @@ export function AgentTranscriptDialog({
 
   // Status badge — full state machine, so queued/dispatched/cancelled render as
   // proper labels instead of raw enum text.
-  const effectiveStatus = isLive ? "running" : task.status;
+  const effectiveStatus = isLive && task.status !== "dispatched" ? "running" : task.status;
   const statusBadge = (() => {
     const base = "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-caption font-medium";
     switch (effectiveStatus) {

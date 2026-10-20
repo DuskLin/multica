@@ -130,12 +130,12 @@ describe("TranscriptButton", () => {
     });
   });
 
-  it("live mode: the open dialog grows as the shared cache receives new messages", async () => {
+  it.each(["running", "dispatched"] as const)("live %s: the open dialog grows as the shared cache receives new messages", async (status) => {
     const qc = newClient();
     qc.setQueryData(chatKeys.taskMessages(LIVE_TASK_ID), [msg(1, "Bash")]);
     listTaskMessages.mockResolvedValue([msg(1, "Bash")]);
 
-    renderWith(qc, <TranscriptButton task={baseTask} agentName="Codex" isLive />);
+    renderWith(qc, <TranscriptButton task={{ ...baseTask, status }} agentName="Codex" isLive />);
 
     fireEvent.click(screen.getByRole("button", { name: "View transcript" }));
     await waitFor(() =>
