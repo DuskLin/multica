@@ -22,6 +22,8 @@ func TestLocalScriptGCReinitializesAndRestoresBranches(t *testing.T) {
 	for _, name := range []string{"api", "web"} {
 		gitRun(t, filepath.Join(path, name), "switch", "feature/"+name)
 	}
+	writeFile(t, filepath.Join(path, ".DS_Store"), "Finder metadata")
+	writeFile(t, filepath.Join(path, "container", ".DS_Store"), "Finder metadata")
 	collected, err := CollectLocalScriptWorkspace(context.Background(), params, completedScriptIssue)
 	if err != nil || !collected {
 		t.Fatalf("collect = %v, %v", collected, err)
