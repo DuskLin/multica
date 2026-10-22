@@ -25,6 +25,8 @@ func TestMain(m *testing.M) {
 		"MULTICA_WORKSPACE_ID",
 		"MULTICA_SERVER_URL",
 		"MULTICA_TASK_CONFIG_ROOT",
+		"MULTICA_DAEMON_PR_SYNC_WORKSPACE_ID",
+		"MULTICA_DAEMON_PR_SYNC_GH_PATH",
 	} {
 		os.Unsetenv(key)
 	}

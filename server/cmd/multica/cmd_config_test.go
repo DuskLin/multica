@@ -431,3 +431,24 @@ func TestPollIntervalRoundTripThroughDuration(t *testing.T) {
 		t.Fatalf("parsed = %v, want %v", got, want)
 	}
 }
+
+// TestApplyConfigSetPRSyncScopesLocalCredentialsToAnExplicitWorkspace covers opt-in persistence.
+func TestApplyConfigSetPRSyncScopesLocalCredentialsToAnExplicitWorkspace(t *testing.T) {
+	cfg := cli.CLIConfig{}
+	const workspaceID = "01900000-0000-7000-8000-000000000001"
+	if err := applyConfigSet(&cfg, "pr_sync_workspace_id", workspaceID); err != nil {
+		t.Fatal(err)
+	}
+	if err := applyConfigSet(&cfg, "pr_sync_gh_path", "/test/fake-gh"); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.PRSyncWorkspaceID != workspaceID || cfg.PRSyncGHPath != "/test/fake-gh" {
+		t.Fatal("PR sync settings were not persisted")
+	}
+	if err := applyConfigSet(&cfg, "pr_sync_workspace_id", "codedance"); err == nil || cfg.PRSyncWorkspaceID != workspaceID {
+		t.Fatal("invalid workspace replaced the existing opt-in")
+	}
+	if err := applyConfigSet(&cfg, "pr_sync_workspace_id", ""); err != nil || cfg.PRSyncWorkspaceID != "" {
+		t.Fatal("could not disable PR sync")
+	}
+}

@@ -63,3 +63,31 @@ func TestStatus(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateUntrustedSnapshot(t *testing.T) {
+	ref := Extract("https://github.com/team/repo/pull/1")[0]
+	now := time.Now().UTC()
+	for _, scenario := range []string{"valid", "wrong identity", "invalid state", "future", "zero merge", "open merged", "negative counts"} {
+		t.Run(scenario, func(t *testing.T) {
+			pr := PullRequest{Number: 1, URL: ref.URL, Title: "Fix", State: "open", CreatedAt: now.Add(-time.Hour), UpdatedAt: now}
+			switch scenario {
+			case "wrong identity":
+				pr.Number = 2
+			case "invalid state":
+				pr.State = "merged"
+			case "future":
+				pr.UpdatedAt = now.Add(time.Hour)
+			case "zero merge":
+				zero := time.Time{}
+				pr.MergedAt, pr.State = &zero, "closed"
+			case "open merged":
+				pr.MergedAt = &now
+			case "negative counts":
+				pr.Additions = -1
+			}
+			if err := pr.Validate(ref); (err == nil) != (scenario == "valid") {
+				t.Fatalf("validation error = %v", err)
+			}
+		})
+	}
+}

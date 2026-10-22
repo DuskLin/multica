@@ -34,6 +34,25 @@ GitHub 集成只读取安装时授权的仓库，不会提交代码、评论或 
 
 全部已关联 PR 合并后，才按工作区设置变更任务状态；草稿、打开和关闭但未合并的 PR 都会阻止完成。手动移除的关联不会恢复，手动重新打开的任务也不会因为重复读取旧的合并状态而再次完成。此模式同步 PR 基本信息及合并状态；CI 与可合并性快照仍需配置 GitHub App。
 
+### 本机执行、线上服务
+
+线上服务和本机 daemon 都升级到支持此功能的版本后，可以由本机 GitHub CLI 读取 PR，再向线上同步元数据，无需把 GitHub 登录凭据放到服务器。
+
+先确认本机 `gh auth status` 已登录，并具有目标仓库的读取权限。在实际执行任务的 daemon profile 中设置：
+
+```bash
+multica --profile <profile名称> config set pr_sync_workspace_id <工作区UUID>
+multica --profile <profile名称> config set pr_sync_gh_path <gh绝对路径>
+```
+
+`pr_sync_gh_path` 可省略，默认从 daemon 的 PATH 查找 `gh`。等待正在运行的任务结束后重启该 daemon；桌面端需使用其连接对应的 profile。同步每 30 秒检查一次，也会补查已有任务的交付结果。此配置仅对指定服务连接的一个工作区生效，默认关闭；清空 `pr_sync_workspace_id` 并重启即可关闭。
+
+只同步本机负责的本地目录项目，且任务须有本机运行时已完成的执行记录。任务描述、已完成运行输出及已关联 PR 中的链接会被去重；父目录无需是 Git 仓库。服务端会再次核对工作区、机器归属、任务版本和全部链接。运行未结束、交付发生变化或任一 PR 读取失败时，该任务等待后续轮询重试，不提交部分结果。已手动移除的关联不会重新建立。
+
+每个任务最多同步 100 个去重后的 PR 链接；超出时跳过该任务并记录服务端日志，不影响其他任务。历史任务较多时分批续扫。连接或 GitHub 读取失败可查看该 profile 的 `daemon.log`。
+
+进程环境变量 `MULTICA_DAEMON_PR_SYNC_WORKSPACE_ID`、`MULTICA_DAEMON_PR_SYNC_GH_PATH` 优先于 profile 配置；前者显式设为空会关闭同步。它们配置在**本机 daemon 进程**中，不是线上后端中。工作区关闭自动 PR 关联时也会停止同步。该模式同步 PR 基本信息及合并状态，CI 与可合并性快照仍需 GitHub App。
+
 ## 功能开关
 
 **设置 → 代码** 的 **PR 与任务联动** 中有以下设置。在 GitHub 一行的 **⋯** 菜单中选择 **暂停 GitHub 功能** 后，下面三项开关不再生效，但不会断开 GitHub App。

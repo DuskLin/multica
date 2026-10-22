@@ -26,6 +26,11 @@ type CLIConfig struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	Token       string `json:"token,omitempty"`
 
+	// PRSyncWorkspaceID opts this profile into sharing locally readable PR metadata
+	// with one workspace. Empty keeps local GitHub credentials unused by sync.
+	PRSyncWorkspaceID string `json:"pr_sync_workspace_id,omitempty"`
+	PRSyncGHPath      string `json:"pr_sync_gh_path,omitempty"`
+
 	// DeviceName is the human-readable label shown in the server's Runtimes
 	// UI for the daemon started with this profile. When multiple daemons run
 	// on the same host under different profiles (typical for shared servers

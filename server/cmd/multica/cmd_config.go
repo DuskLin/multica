@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/multica-ai/multica/server/internal/cli"
+	"github.com/multica-ai/multica/server/internal/util"
 )
 
 var configCmd = &cobra.Command{
@@ -32,6 +33,8 @@ var configSetSupportedKeys = []string{
 	"server_url",
 	"app_url",
 	"workspace_id",
+	"pr_sync_workspace_id",
+	"pr_sync_gh_path",
 	"device_name",
 	"runtime_name",
 	"workspaces_root",
@@ -51,7 +54,7 @@ var configSetCmd = &cobra.Command{
 	Use:   "set <key> <value>",
 	Short: "Set a CLI configuration value",
 	Long: "Supported keys: " +
-		"server_url, app_url, workspace_id, " +
+		"server_url, app_url, workspace_id, pr_sync_workspace_id, pr_sync_gh_path, " +
 		"device_name, runtime_name, workspaces_root, max_concurrent_tasks, poll_interval, ws_claim_poll_interval, " +
 		"heartbeat_interval, agent_timeout, " +
 		"codex_semantic_inactivity_timeout, codex_handshake_timeout, " +
@@ -98,6 +101,8 @@ func runConfigShow(cmd *cobra.Command, _ []string) error {
 	fmt.Fprintf(os.Stdout, "%-34s %s\n", "server_url:", valueOrDefault(cfg.ServerURL, "(not set)"))
 	fmt.Fprintf(os.Stdout, "%-34s %s\n", "app_url:", valueOrDefault(cfg.AppURL, "(not set)"))
 	fmt.Fprintf(os.Stdout, "%-34s %s\n", "workspace_id:", valueOrDefault(cfg.WorkspaceID, "(not set)"))
+	fmt.Fprintf(os.Stdout, "%-34s %s\n", "pr_sync_workspace_id:", valueOrDefault(cfg.PRSyncWorkspaceID, "(disabled)"))
+	fmt.Fprintf(os.Stdout, "%-34s %s\n", "pr_sync_gh_path:", valueOrDefault(cfg.PRSyncGHPath, "gh"))
 	fmt.Fprintf(os.Stdout, "%-34s %s\n", "device_name:", valueOrDefault(cfg.DeviceName, "(not set)"))
 	fmt.Fprintf(os.Stdout, "%-34s %s\n", "runtime_name:", valueOrDefault(cfg.RuntimeName, "(not set)"))
 	fmt.Fprintf(os.Stdout, "%-34s %s\n", "workspaces_root:", valueOrDefault(cfg.WorkspacesRoot, "(not set)"))
@@ -164,6 +169,18 @@ func applyConfigSet(cfg *cli.CLIConfig, key, value string) error {
 		cfg.DeviceName = value
 	case "runtime_name":
 		cfg.RuntimeName = value
+	case "pr_sync_workspace_id":
+		value = strings.TrimSpace(value)
+		if value != "" {
+			id, err := util.ParseUUID(value)
+			if err != nil {
+				return fmt.Errorf("pr_sync_workspace_id must be a workspace UUID: %w", err)
+			}
+			value = util.UUIDToString(id)
+		}
+		cfg.PRSyncWorkspaceID = value
+	case "pr_sync_gh_path":
+		cfg.PRSyncGHPath = strings.TrimSpace(value)
 	case "workspaces_root":
 		value = strings.TrimSpace(value)
 		if value == "" {
