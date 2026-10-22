@@ -523,6 +523,22 @@ export function createEnDict(
     },
     entries: [
       {
+        version: "0.6.8-local.1",
+        date: "2026-10-22",
+        title: "Remote PR sync and work directory cleanup fixes",
+        changes: [],
+        features: [
+          "Opt in per workspace to let the local daemon use GitHub CLI to link PRs from completed runs to issues on a remote server, without uploading GitHub credentials.",
+          "Sync PR merge status and apply the workspace status setting after all linked PRs merge, while preserving manual exclusions and reopened issues.",
+        ],
+        improvements: [
+          "PR sync supports pagination, shared lookup caching, retries, and continued scanning of large task histories.",
+        ],
+        fixes: [
+          "Ordinary .DS_Store files and the managed codex-home/.models_cache_config.sha256 file no longer block safe work directory cleanup; user files, symbolic links, and work that cannot be recovered from a remote remain protected.",
+        ],
+      },
+      {
         version: "0.6.7-local.1",
         date: "2026-10-20",
         title: "Android icons and native interaction fixes",
