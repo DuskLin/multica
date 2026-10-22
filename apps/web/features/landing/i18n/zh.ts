@@ -508,6 +508,22 @@ export function createZhDict(
     },
     entries: [
       {
+        version: "0.6.8-local.1",
+        date: "2026-10-22",
+        title: "线上 PR 同步与工作目录清理修复",
+        changes: [],
+        features: [
+          "按工作区启用后，本机守护进程可通过 GitHub CLI，将已完成运行中的 PR 链接关联到线上任务，无需上传 GitHub 凭据。",
+          "同步 PR 合并状态，全部关联 PR 合并后按工作区设置更新任务状态，并保留手动排除和重开任务的行为。",
+        ],
+        improvements: [
+          "PR 同步支持分页、共享查询缓存、失败重试和大量历史任务的续扫。",
+        ],
+        fixes: [
+          "普通 .DS_Store 文件和受管的 codex-home/.models_cache_config.sha256 文件不再阻止安全清理工作目录；用户文件、符号链接和无法从远端恢复的成果仍受保护。",
+        ],
+      },
+      {
         version: "0.6.7-local.1",
         date: "2026-10-20",
         title: "Android 图标与原生交互修复",
