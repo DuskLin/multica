@@ -508,7 +508,7 @@ export function createZhDict(
     },
     entries: [
       {
-        version: "0.6.8-local.1",
+        version: "0.6.8-local.2",
         date: "2026-10-22",
         title: "线上 PR 同步与工作目录清理修复",
         changes: [],
@@ -520,6 +520,7 @@ export function createZhDict(
           "PR 同步支持分页、共享查询缓存、失败重试和大量历史任务的续扫。",
         ],
         fixes: [
+          "使用 Go 1.26.10 构建服务端和桌面端二进制文件，纳入证书验证安全修复 GO-2026-6809。",
           "普通 .DS_Store 文件和受管的 codex-home/.models_cache_config.sha256 文件不再阻止安全清理工作目录；用户文件、符号链接和无法从远端恢复的成果仍受保护。",
         ],
       },

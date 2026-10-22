@@ -279,7 +279,7 @@ export function createKoDict(
       },
       entries: [
         {
-          version: "0.6.8-local.1",
+          version: "0.6.8-local.2",
           date: "2026-10-22",
           title: "원격 PR 동기화 및 작업 디렉터리 정리 수정",
           changes: [],
@@ -291,6 +291,7 @@ export function createKoDict(
             "PR 동기화가 페이지 분할, 공통 조회 캐시, 실패 시 재시도, 대규모 태스크 기록의 이어서 스캔을 지원합니다.",
           ],
           fixes: [
+            "서버 및 데스크톱 바이너리를 Go 1.26.10으로 빌드하여 인증서 검증 보안 수정 GO-2026-6809를 적용했습니다.",
             "일반 .DS_Store 파일과 관리 대상인 codex-home/.models_cache_config.sha256 파일이 안전한 작업 디렉터리 정리를 막지 않도록 수정했습니다. 사용자 파일, 심볼릭 링크, 원격에서 복구할 수 없는 결과물은 계속 보호합니다.",
           ],
         },

@@ -523,7 +523,7 @@ export function createEnDict(
     },
     entries: [
       {
-        version: "0.6.8-local.1",
+        version: "0.6.8-local.2",
         date: "2026-10-22",
         title: "Remote PR sync and work directory cleanup fixes",
         changes: [],
@@ -535,6 +535,7 @@ export function createEnDict(
           "PR sync supports pagination, shared lookup caching, retries, and continued scanning of large task histories.",
         ],
         fixes: [
+          "Build server and desktop binaries with Go 1.26.10 to include the certificate verification security fix GO-2026-6809.",
           "Ordinary .DS_Store files and the managed codex-home/.models_cache_config.sha256 file no longer block safe work directory cleanup; user files, symbolic links, and work that cannot be recovered from a remote remain protected.",
         ],
       },
