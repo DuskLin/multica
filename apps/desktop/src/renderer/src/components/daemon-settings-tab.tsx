@@ -1,3 +1,4 @@
+import { LocalPRSyncSettings } from "./local-pr-sync-settings";
 import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { AlertCircle, Info, LogIn } from "lucide-react";
 import { Button } from "@multica/ui/components/ui/button";
@@ -184,6 +185,8 @@ export function DaemonSettingsTab() {
           {cliInstalled !== false && <span />}
         </SettingsRow>
       </SettingsCard>
+
+      <LocalPRSyncSettings />
 
       {/* Diagnostics — moved out of the logs panel so the panel can focus
           on logs. These fields matter for support tickets and bug reports,

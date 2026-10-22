@@ -1,3 +1,4 @@
+import { parseLocalPRSyncSettings, type LocalPRSyncCommand, type LocalPRSyncSettings } from "@multica/core/api/local-pr-sync";
 import type { WorkdirCommand, WorkdirResponse } from "@multica/core/api/workdirs";
 import { contextBridge, ipcRenderer } from "electron";
 import { electronAPI } from "@electron-toolkit/preload";
@@ -252,6 +253,7 @@ type DaemonReauthResult =
   | { ok: false; reason: "transient"; message: string };
 
 const daemonAPI = {
+  prSync: async (command: LocalPRSyncCommand): Promise<LocalPRSyncSettings> => parseLocalPRSyncSettings(await ipcRenderer.invoke("daemon:pr-sync", command)),
   workdirs: (command: WorkdirCommand): Promise<WorkdirResponse> => ipcRenderer.invoke("daemon:workdirs", command),
   start: (): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke("daemon:start"),

@@ -169,7 +169,8 @@
     "./skills/pack-archive": "./skills/pack-archive.ts",
     "./skills/stores": "./skills/stores/index.ts",
     "./autopilots/stores": "./autopilots/stores/index.ts",
-    "./api/workdirs": "./api/workdirs.ts"
+    "./api/workdirs": "./api/workdirs.ts",
+    "./api/local-pr-sync": "./api/local-pr-sync.ts"
   },
   "dependencies": {
     "@formatjs/intl-localematcher": "catalog:",

@@ -1,3 +1,4 @@
+import type { LocalPRSyncCommand, LocalPRSyncSettings } from "@multica/core/api/local-pr-sync";
 import type { WorkdirCommand, WorkdirResponse } from "@multica/core/api/workdirs";
 import { ElectronAPI } from "@electron-toolkit/preload";
 import type { RuntimeConfigResult } from "../shared/runtime-config";
@@ -129,6 +130,7 @@ type DaemonReauthResult =
   | { ok: false; reason: "transient"; message: string };
 
 interface DaemonAPI {
+  prSync: (command: LocalPRSyncCommand) => Promise<LocalPRSyncSettings>;
   workdirs: (command: WorkdirCommand) => Promise<WorkdirResponse>;
   start: () => Promise<{ success: boolean; error?: string }>;
   stop: () => Promise<{ success: boolean; error?: string }>;

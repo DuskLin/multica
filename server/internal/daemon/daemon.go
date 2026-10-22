@@ -432,7 +432,8 @@ type repoCacheBackend interface {
 
 // Daemon is the local agent runtime that polls for and executes tasks.
 type Daemon struct {
-	workdirOperations sync.Mutex // serializes manual and scheduled cleanup
+	prSyncPhase       prSyncPhase // guarded by mu; diagnostics never contain CLI output or credentials
+	workdirOperations sync.Mutex  // serializes manual and scheduled cleanup
 	workdirJobs       workdirJobQueue
 	cfg               Config
 	client            *Client

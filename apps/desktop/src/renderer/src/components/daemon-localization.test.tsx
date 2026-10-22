@@ -7,6 +7,8 @@ import type { DaemonStatus } from "../../../shared/daemon-types";
 import { DaemonPanel } from "./daemon-panel";
 import { DaemonSettingsTab } from "./daemon-settings-tab";
 
+vi.mock("./local-pr-sync-settings", () => ({ LocalPRSyncSettings: () => null }));
+
 vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
