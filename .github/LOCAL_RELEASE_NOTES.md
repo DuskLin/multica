@@ -1,6 +1,6 @@
 Self-hosted Multica release built by GitHub Actions.
 
-## v0.6.8-local.1 — 2026-10-22
+## v0.6.8-local.2 — 2026-10-22
 
 Changes since `v0.6.7-local.1` ([#14](https://github.com/DuskLin/multica/pull/14)).
 
@@ -15,11 +15,13 @@ Changes since `v0.6.7-local.1` ([#14](https://github.com/DuskLin/multica/pull/14
 
 ### Fixes
 
+- Build server and desktop binaries with Go 1.26.10 to include the certificate verification security fix [GO-2026-6809](https://pkg.go.dev/vuln/GO-2026-6809).
+
 - Ordinary `.DS_Store` files and the managed `codex-home/.models_cache_config.sha256` file no longer block safe work directory cleanup. User files, symbolic links, and work that cannot be recovered from a remote remain protected.
 
 ### Enabling remote PR sync
 
-Update both the server and local daemon. The feature is disabled by default: set `pr_sync_workspace_id` in the daemon profile and optionally `pr_sync_gh_path`, then restart the daemon after active runs finish. The local GitHub CLI must be logged in and able to read the repositories, and automatic PR linking must be enabled in the workspace. Sync runs every 30 seconds. CI and mergeability details still require the GitHub App. See the [GitHub integration guide](https://github.com/DuskLin/multica/blob/v0.6.8-local.1/apps/docs/content/docs/github-integration.zh.mdx).
+Update both the server and local daemon. The feature is disabled by default: set `pr_sync_workspace_id` in the daemon profile and optionally `pr_sync_gh_path`, then restart the daemon after active runs finish. The local GitHub CLI must be logged in and able to read the repositories, and automatic PR linking must be enabled in the workspace. Sync runs every 30 seconds. CI and mergeability details still require the GitHub App. See the [GitHub integration guide](https://github.com/DuskLin/multica/blob/v0.6.8-local.2/apps/docs/content/docs/github-integration.zh.mdx).
 
 ## v0.6.7-local.1 — 2026-10-20
 
