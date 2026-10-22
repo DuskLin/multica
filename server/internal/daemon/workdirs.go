@@ -3,7 +3,6 @@ package daemon
 import (
 	"context"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -247,11 +246,7 @@ func (d *Daemon) workdirsHandler() http.HandlerFunc {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		token := ""
-		if d.client != nil {
-			token = d.client.Token()
-		}
-		if token == "" || r.Header.Get("Origin") != "" || subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+token)) != 1 {
+		if !d.authorizeLocalControl(r) {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}

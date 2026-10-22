@@ -32,7 +32,7 @@ Use `Makefile`, workspace `package.json` files, and `pnpm-workspace.yaml` for cu
 
 - Use the checkout's managed environment: `make up`, `make status`, `make down`. `make down` preserves data; `make destroy` removes the environment and its data.
 - 本地 GitHub CLI PR 同步通过 `MULTICA_LOCAL_PR_SYNC_WORKSPACE_ID` 为单个工作区显式启用；详见 `.env.example` 和 GitHub 集成文档。保留回环地址及云端配置检查，测试使用模拟 CLI 可执行文件。
-- 本机 daemon 向远端同步 PR 通过 profile 的 `pr_sync_workspace_id` 显式启用，仅使用本机 GitHub CLI。服务端校验运行时所属用户或 daemon 身份、工作区及本机项目资源归属，并核对完整交付快照；不上传 GitHub 凭据，不放宽本地后端同步的回环限制。
+- 本机 daemon 向远端同步 PR 通过 profile 的 `pr_sync_workspace_id` 显式启用，仅使用本机 GitHub CLI。服务端校验运行时所属用户或 daemon 身份、工作区及本机项目资源归属，并核对完整交付快照；不上传 GitHub 凭据，不放宽本地后端同步的回环限制。桌面端开关仅修改当前服务的专用 profile，并限定当前工作区；配置与实际运行状态分开展示，环境变量接管时禁止覆盖，重启前核实运行占用。
 - 脚本工作目录回收与执行必须共享目录锁；仅对已完成任务、归属有效且所有子项目成果均可从远端恢复的目录执行回收。恢复须先运行初始化脚本，再切回记录的子项目分支，成功后才能发布初始化完成标记。详见项目资源文档；测试使用临时本地远端仓库。
 - Worktrees share PostgreSQL but have isolated databases/ports. Use the environment scripts and `.env.worktree`; do not copy the main checkout's `.env` or manually create a database through an assumed PostgreSQL instance.
 - Regenerate sqlc with `make sqlc` after SQL changes.

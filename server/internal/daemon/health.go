@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,8 +20,9 @@ import (
 
 // HealthResponse is returned by the daemon's local health endpoint.
 type HealthResponse struct {
-	Status string `json:"status"`
-	PID    int    `json:"pid"`
+	PRSync prSyncHealth `json:"pr_sync"`
+	Status string       `json:"status"`
+	PID    int          `json:"pid"`
 	// OS is the daemon's runtime.GOOS. The desktop app compares it against its
 	// own host OS to detect a daemon it cannot manage — e.g. a Windows desktop
 	// reaching a Linux daemon inside WSL2 over localhost forwarding. The
@@ -345,6 +347,7 @@ func (d *Daemon) healthHandler(startedAt time.Time) http.HandlerFunc {
 		}
 
 		resp := HealthResponse{
+			PRSync:                d.prSyncSnapshot(),
 			Status:                status,
 			PID:                   os.Getpid(),
 			OS:                    runtime.GOOS,
@@ -413,6 +416,7 @@ func (d *Daemon) serveHealth(ctx context.Context, ln net.Listener, startedAt tim
 	mux.HandleFunc("/health", d.healthHandler(startedAt))
 	mux.HandleFunc("/workdirs", d.workdirsHandler())
 	mux.HandleFunc("/shutdown", d.shutdownHandler())
+	mux.HandleFunc("/pr-sync/restart", d.prSyncRestartHandler())
 	mux.HandleFunc("/repo/checkout", d.repoCheckoutHandler())
 
 	srv := &http.Server{Handler: mux}
@@ -555,4 +559,13 @@ func (d *Daemon) repoCheckoutHandler() http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(result)
 	}
+}
+
+// authorizeLocalControl rejects browser origins and requires the live profile credential.
+func (d *Daemon) authorizeLocalControl(r *http.Request) bool {
+	token := ""
+	if d.client != nil {
+		token = d.client.Token()
+	}
+	return token != "" && r.Header.Get("Origin") == "" && subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+token)) == 1
 }

@@ -1363,6 +1363,31 @@
       "elapsed": "Elapsed: {{seconds}} s",
       "stage_elapsed": "Current stage: {{seconds}} s",
       "removed_files": "{{count}} files or links removed"
+    },
+    "pr_sync": {
+      "title": "Local PR sync",
+      "description": "Use this device’s GitHub CLI login to sync PRs for the current workspace. GitHub credentials stay on this device.",
+      "loading": "Checking…",
+      "pending": "Saved. Restart the daemon to apply.",
+      "restart": "Restart to apply",
+      "busy": "Wait for active runs to finish.",
+      "failed": "Could not update local PR sync.",
+      "phase": {
+        "disabled": "Disabled",
+        "waiting": "Waiting for a local runtime",
+        "syncing": "Syncing",
+        "idle": "Waiting for the next scan",
+        "error": "Sync failed; retrying automatically. Check logs for details.",
+        "unknown": "Sync status unavailable"
+      },
+      "blocked": {
+        "offline": "Start the local daemon to change this setting.",
+        "unsupported": "Update the local daemon to manage PR sync here.",
+        "external": "This daemon is managed outside the desktop app.",
+        "environment": "Controlled by an environment variable; change it before using this switch.",
+        "other_workspace": "Another workspace uses local PR sync. Disable it there and apply before switching.",
+        "unregistered": "No local runtime is registered in this workspace."
+      }
     }
   },
   "members": {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -53,9 +54,16 @@ func (d *Daemon) prSyncLoop(ctx context.Context) {
 	for {
 		runtimeID := d.prSyncRuntimeID()
 		if runtimeID != "" {
-			if err := d.syncPullRequests(ctx, runtimeID, &cursor); err != nil && ctx.Err() == nil {
+			d.setPRSyncPhase(prSyncSyncing)
+			err := d.syncPullRequests(ctx, runtimeID, &cursor)
+			if err != nil && ctx.Err() == nil {
+				d.setPRSyncPhase(prSyncError)
 				d.logger.Warn("daemon PR sync failed", "workspace_id", d.cfg.PRSyncWorkspaceID, "error", err)
+			} else if ctx.Err() == nil {
+				d.setPRSyncPhase(prSyncIdle)
 			}
+		} else {
+			d.setPRSyncPhase(prSyncWaiting)
 		}
 		select {
 		case <-ctx.Done():
@@ -191,4 +199,87 @@ func validatePRSyncPage(page localgithub.SyncPage) error {
 		}
 	}
 	return nil
+}
+
+// prSyncPhase is the finite local diagnostic state of the synchronization loop.
+type prSyncPhase string
+
+const (
+	prSyncDisabled prSyncPhase = "disabled"
+	prSyncWaiting  prSyncPhase = "waiting"
+	prSyncSyncing  prSyncPhase = "syncing"
+	prSyncIdle     prSyncPhase = "idle"
+	prSyncError    prSyncPhase = "error"
+)
+
+// prSyncHealth exposes effective configuration and bounded, credential-free diagnostics.
+type prSyncHealth struct {
+	WorkspaceID        string      `json:"workspace_id"`
+	Phase              prSyncPhase `json:"phase"`
+	EnvironmentManaged bool        `json:"environment_managed"`
+}
+
+// setPRSyncPhase publishes a loop transition for local settings consumers.
+func (d *Daemon) setPRSyncPhase(phase prSyncPhase) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.prSyncPhase = phase
+}
+
+// prSyncSnapshot keeps disabled and not-yet-started loops distinct from success.
+func (d *Daemon) prSyncSnapshot() prSyncHealth {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	phase := d.prSyncPhase
+	if d.cfg.PRSyncWorkspaceID == "" {
+		phase = prSyncDisabled
+	} else if phase == "" {
+		phase = prSyncWaiting
+	}
+	_, managed := os.LookupEnv("MULTICA_DAEMON_PR_SYNC_WORKSPACE_ID")
+	return prSyncHealth{WorkspaceID: d.cfg.PRSyncWorkspaceID, Phase: phase, EnvironmentManaged: managed}
+}
+
+// prSyncRestartHandler applies saved settings only after atomically fencing new claims.
+func (d *Daemon) prSyncRestartHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if !d.authorizeLocalControl(r) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if r.Header.Get("X-Multica-Profile") != d.cfg.Profile {
+			http.Error(w, "profile mismatch", http.StatusConflict)
+			return
+		}
+		if !d.ready.Load() || !d.updating.CompareAndSwap(false, true) {
+			http.Error(w, "daemon is not ready to restart", http.StatusConflict)
+			return
+		}
+		if !d.trySetClaimBarrier() {
+			d.updating.Store(false)
+			http.Error(w, "wait for active runs and claims to finish", http.StatusConflict)
+			return
+		}
+		if _, err := d.restartTargetBinary(); err != nil {
+			d.releaseClaimBarrier()
+			d.updating.Store(false)
+			http.Error(w, "restart binary unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		// Flush acceptance before cancellation closes the health server connection.
+		w.WriteHeader(http.StatusAccepted)
+		if err := http.NewResponseController(w).Flush(); err != nil {
+			d.releaseClaimBarrier()
+			d.updating.Store(false)
+			return
+		}
+		if !d.triggerRestart() {
+			d.releaseClaimBarrier()
+			d.updating.Store(false)
+		}
+	}
 }

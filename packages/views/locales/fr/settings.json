@@ -1363,6 +1363,31 @@
       "elapsed": "Durée : {{seconds}} s",
       "stage_elapsed": "Étape actuelle : {{seconds}} s",
       "removed_files": "{{count}} fichiers ou liens supprimés"
+    },
+    "pr_sync": {
+      "title": "Synchronisation locale des PR",
+      "description": "Utilisez la connexion GitHub CLI de cet appareil pour synchroniser les PR de l’espace actuel. Les identifiants restent sur cet appareil.",
+      "loading": "Vérification…",
+      "pending": "Enregistré. Redémarrez le démon pour appliquer.",
+      "restart": "Redémarrer et appliquer",
+      "busy": "Attendez la fin des exécutions en cours.",
+      "failed": "Impossible de modifier la synchronisation locale des PR.",
+      "phase": {
+        "disabled": "Désactivée",
+        "waiting": "En attente d’un runtime local",
+        "syncing": "Synchronisation en cours",
+        "idle": "En attente du prochain scan",
+        "error": "Échec de synchronisation ; nouvelle tentative automatique. Consultez les journaux.",
+        "unknown": "État de synchronisation indisponible"
+      },
+      "blocked": {
+        "offline": "Démarrez le démon local pour modifier ce réglage.",
+        "unsupported": "Mettez à jour le démon local pour utiliser ce réglage.",
+        "external": "Ce démon est géré en dehors de l’application de bureau.",
+        "environment": "Une variable d’environnement contrôle ce réglage ; modifiez-la d’abord.",
+        "other_workspace": "Un autre espace utilise cette fonction. Désactivez-la et appliquez dans cet espace avant de changer.",
+        "unregistered": "Aucun runtime local n’est enregistré dans cet espace."
+      }
     }
   },
   "members": {

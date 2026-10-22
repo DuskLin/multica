@@ -1,3 +1,6 @@
+import { ProfileConfigWriter } from "./profile-config-writer";
+import { parseLocalPRSyncCommand, parseLocalPRSyncLive } from "@multica/core/api/local-pr-sync";
+import { runPRSyncSettings } from "./pr-sync-settings";
 import { runWorkdirCommand } from "./workdir-manager";
 import { app, ipcMain, BrowserWindow, shell } from "electron";
 import { execFile } from "child_process";
@@ -119,7 +122,7 @@ let authExpired = false;
 // (syncToken, resolveActiveProfile, clearToken, watch/unwatch handlers)
 // may try to write concurrently; chaining them avoids interleaved writes
 // corrupting the JSON.
-let configWriteChain: Promise<void> = Promise.resolve();
+const profileConfigWriter = new ProfileConfigWriter();
 
 async function readProfileUserId(profile: string): Promise<string | null> {
   try {
@@ -169,6 +172,7 @@ function sendStatus(status: DaemonStatus): void {
 }
 
 interface HealthPayload {
+  pr_sync?: unknown;
   status?: string;
   pid?: number;
   profile?: string;
@@ -254,21 +258,12 @@ async function readProfileConfig(
   }
 }
 
-async function writeProfileConfig(
+/** Update selected profile fields without overwriting concurrent credential changes. */
+function updateProfileConfig(
   profile: string,
-  cfg: Record<string, unknown>,
+  update: (config: Record<string, unknown>) => void,
 ): Promise<void> {
-  const op = async () => {
-    await mkdir(profileDir(profile), { recursive: true });
-    await writeFile(
-      profileConfigPath(profile),
-      JSON.stringify(cfg, null, 2),
-      "utf-8",
-    );
-  };
-  const next = configWriteChain.catch(() => {}).then(op);
-  configWriteChain = next.catch(() => {});
-  return next;
+  return profileConfigWriter.update(profileConfigPath(profile), update);
 }
 
 /**
@@ -288,8 +283,7 @@ async function resolveActiveProfile(): Promise<ActiveProfile | null> {
   const cfg = await readProfileConfig(name);
 
   if (cfg.server_url !== target) {
-    cfg.server_url = target;
-    await writeProfileConfig(name, cfg);
+    await updateProfileConfig(name, (config) => { config.server_url = target; });
     console.log(`[daemon] initialized profile "${name}" → ${target}`);
   }
 
@@ -738,9 +732,11 @@ async function syncToken(
     }
   }
 
-  config.token = finalToken;
-  if (targetApiBaseUrl) config.server_url = targetApiBaseUrl;
-  await writeProfileConfig(active.name, config);
+  const serverUrl = targetApiBaseUrl;
+  await updateProfileConfig(active.name, (config) => {
+    config.token = finalToken;
+    if (serverUrl) config.server_url = serverUrl;
+  });
   await writeProfileUserId(active.name, userId);
 
   return { active, userChanged };
@@ -793,11 +789,7 @@ async function clearToken(): Promise<void> {
   // Nothing of ours to clear yet, and the default CLI profile is not ours to
   // strip a token from.
   if (!active) return;
-  const config = await readProfileConfig(active.name);
-  if ("token" in config) {
-    delete config.token;
-    await writeProfileConfig(active.name, config);
-  }
+  await updateProfileConfig(active.name, (config) => { delete config.token; });
   // Always drop the sidecar so a subsequent syncToken from any user is
   // treated as a fresh mint, not a reuse of a stale cached PAT.
   await removeProfileUserId(active.name);
@@ -1357,7 +1349,7 @@ export function setupDaemonManager(
 ): void {
   getMainWindow = windowGetter;
 
-  ipcMain.handle("daemon:set-target-api-url", async (_e, url: string) => {
+  ipcMain.handle("daemon:set-target-api-url", (_e, url: string) => lifecycleOperations.runForeground(async () => {
     const normalized = url || null;
     if (targetApiBaseUrl !== normalized) {
       console.log(`[daemon] target API URL set to ${normalized ?? "(none)"}`);
@@ -1366,7 +1358,7 @@ export function setupDaemonManager(
       invalidateActiveProfile();
       await pollOnce();
     }
-  });
+  }));
   ipcMain.handle("daemon:start", () => {
     externalDaemonObserved = false;
     setDesiredDaemonRunning(true, true);
@@ -1382,6 +1374,55 @@ export function setupDaemonManager(
     return lifecycleOperations.runForeground(() => restartDaemon());
   });
   ipcMain.handle("daemon:get-status", () => fetchHealth());
+  ipcMain.handle("daemon:pr-sync", (_event, input: unknown) => lifecycleOperations.runForeground(async () => {
+    const command = parseLocalPRSyncCommand(input);
+    const active = await ensureActiveProfile();
+    if (!active) throw new Error("Waiting for the service address");
+    return runPRSyncSettings(command, {
+      read: async () => {
+        const health = await fetchProfileHealth(active);
+        const config = await readProfileConfig(active.name);
+        const workspaceIds: string[] = [];
+        for (const workspace of health?.workspaces ?? []) {
+          if (workspace && typeof workspace === "object" && "id" in workspace && typeof workspace.id === "string") workspaceIds.push(workspace.id);
+        }
+        return {
+          serverUrl: targetApiBaseUrl ?? "",
+          configuredWorkspaceId: typeof config.pr_sync_workspace_id === "string" ? config.pr_sync_workspace_id : "",
+          environmentManaged: process.env.MULTICA_DAEMON_PR_SYNC_WORKSPACE_ID !== undefined,
+          running: health?.status === "running" && health.profile === active.name && Boolean(health.server_url && targetApiBaseUrl && urlsMatch(health.server_url, targetApiBaseUrl)),
+          external: externalDaemonObserved || isDaemonExternallyManaged(health?.os, normalizeHostOS(process.platform)),
+          activeTaskCount: typeof health?.active_task_count === "number" ? health.active_task_count : null,
+          workspaceIds,
+          live: parseLocalPRSyncLive(health?.pr_sync),
+        };
+      },
+      save: (workspaceId) => updateProfileConfig(active.name, (config) => {
+        const configuredWorkspace = config.pr_sync_workspace_id;
+        if (typeof configuredWorkspace === "string" && configuredWorkspace && configuredWorkspace !== command.workspaceId) {
+          throw new Error("Another workspace enabled PR sync; refresh settings");
+        }
+        config.pr_sync_workspace_id = workspaceId;
+      }),
+      restart: async () => {
+        const health = await probeProfileHealth(active.name, async (port) => {
+          const data = await fetchHealthAtPort(port);
+          return data ? { ...data, localHealthPort: port } : null;
+        });
+        if (health?.status !== "running" || health.active_task_count !== 0 || health.profile !== active.name) throw new Error("Wait for an idle local daemon before restarting");
+        const config = await readProfileConfig(active.name);
+        if (typeof config.token !== "string" || !config.token) throw new Error("Sign in before restarting the daemon");
+        const response = await fetch(`http://127.0.0.1:${health.localHealthPort}/pr-sync/restart`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${config.token}`, "X-Multica-Profile": active.name },
+          signal: AbortSignal.timeout(HEALTH_PROBE_TIMEOUT_MS),
+        });
+        if (!response.ok) throw new Error("The daemon could not restart safely; wait for active runs to finish and retry");
+        setDesiredDaemonRunning(true, true);
+        scheduleStatusRefresh();
+      },
+    });
+  }));
   ipcMain.handle("daemon:workdirs", async (_event, input: unknown) => {
     const binary = await resolveCliBinary();
     if (!binary) throw new Error("Install or update the local daemon first");

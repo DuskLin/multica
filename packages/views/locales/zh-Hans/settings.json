@@ -1353,6 +1353,31 @@
       "elapsed": "已用时 {{seconds}} 秒",
       "stage_elapsed": "当前阶段 {{seconds}} 秒",
       "removed_files": "已删除 {{count}} 个文件或链接"
+    },
+    "pr_sync": {
+      "title": "本机 PR 同步",
+      "description": "使用本机 GitHub CLI 登录，同步当前工作区的 PR。GitHub 凭据仅保留在本机。",
+      "loading": "正在检查...",
+      "pending": "已保存，重启守护进程后生效。",
+      "restart": "重启生效",
+      "busy": "请等待运行中的任务结束。",
+      "failed": "无法更新本机 PR 同步。",
+      "phase": {
+        "disabled": "已关闭",
+        "waiting": "等待本机运行时注册",
+        "syncing": "正在同步",
+        "idle": "等待下一轮扫描",
+        "error": "同步失败，将自动重试。请查看日志了解原因。",
+        "unknown": "无法获取同步状态"
+      },
+      "blocked": {
+        "offline": "请先启动本机守护进程。",
+        "unsupported": "请升级本机守护进程后使用此开关。",
+        "external": "此守护进程由桌面应用之外的环境管理。",
+        "environment": "当前由环境变量控制，请先修改环境变量。",
+        "other_workspace": "另一个工作区已启用本机 PR 同步，请先在该工作区关闭并使其生效。",
+        "unregistered": "本机尚未在当前工作区注册运行时。"
+      }
     }
   },
   "members": {

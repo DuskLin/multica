@@ -263,3 +263,66 @@ func TestPRSyncBudgetResumesAfterCompletedDelivery(t *testing.T) {
 		}
 	})
 }
+
+// TestPRSyncHealth never mistakes an unstarted or disabled loop for a successful scan.
+func TestPRSyncHealth(t *testing.T) {
+	d := &Daemon{}
+	if got := d.prSyncSnapshot(); got.Phase != "disabled" {
+		t.Fatalf("disabled: %+v", got)
+	}
+	d.cfg.PRSyncWorkspaceID = prSyncTestIssue
+	if got := d.prSyncSnapshot(); got.Phase != "waiting" {
+		t.Fatalf("waiting: %+v", got)
+	}
+	for _, phase := range []prSyncPhase{prSyncSyncing, prSyncError, prSyncIdle} {
+		d.setPRSyncPhase(phase)
+		if got := d.prSyncSnapshot(); got.Phase != phase || got.WorkspaceID != prSyncTestIssue {
+			t.Fatalf("phase %s: %+v", phase, got)
+		}
+	}
+	t.Setenv("MULTICA_DAEMON_PR_SYNC_WORKSPACE_ID", "")
+	if got := d.prSyncSnapshot(); !got.EnvironmentManaged {
+		t.Fatal("explicit empty environment override must lock desktop controls")
+	}
+}
+
+// TestPRSyncRestartFencesClaims validates the final admission boundary, not a sampled health count.
+func TestPRSyncRestartFencesClaims(t *testing.T) {
+	for _, scenario := range []string{"idle", "active task", "in-flight claim", "updating", "unready", "no token", "browser", "wrong profile"} {
+		t.Run(scenario, func(t *testing.T) {
+			d := &Daemon{cfg: Config{Profile: "desktop-test"}, client: NewClient("http://sync.test"), logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+			d.client.SetToken("fake-token")
+			d.ready.Store(true)
+			cancelled := false
+			d.cancelFunc = func() { cancelled = true }
+			request := httptest.NewRequest(http.MethodPost, "/pr-sync/restart", nil)
+			request.Header.Set("Authorization", "Bearer fake-token")
+			request.Header.Set("X-Multica-Profile", d.cfg.Profile)
+			switch scenario {
+			case "active task":
+				d.activeTasks.Store(1)
+			case "in-flight claim":
+				d.claimsInFlight = 1
+			case "updating":
+				d.updating.Store(true)
+			case "unready":
+				d.ready.Store(false)
+			case "no token":
+				request.Header.Del("Authorization")
+			case "browser":
+				request.Header.Set("Origin", "https://foreign.test")
+			case "wrong profile":
+				request.Header.Set("X-Multica-Profile", "another-profile")
+			}
+			recorder := httptest.NewRecorder()
+			d.prSyncRestartHandler().ServeHTTP(recorder, request)
+			if scenario == "idle" {
+				if recorder.Code != http.StatusAccepted || !cancelled || !d.pauseClaims || d.RestartBinary() == "" {
+					t.Fatalf("restart not fenced: status=%d cancelled=%v paused=%v", recorder.Code, cancelled, d.pauseClaims)
+				}
+			} else if recorder.Code < http.StatusBadRequest || cancelled || d.pauseClaims {
+				t.Fatalf("unsafe restart in %s: status=%d cancelled=%v paused=%v", scenario, recorder.Code, cancelled, d.pauseClaims)
+			}
+		})
+	}
+}
