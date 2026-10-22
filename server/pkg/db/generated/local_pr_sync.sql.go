@@ -58,12 +58,30 @@ SELECT i.id, i.revision,
              AND pr.state <> 'merged')::boolean AS had_unmerged_pr
 FROM issue i
 WHERE i.workspace_id = $1
+  AND ($2::uuid IS NULL OR i.id = $2)
+  AND ($3::uuid IS NULL OR i.id > $3)
   AND EXISTS(SELECT 1 FROM project_resource resource
              WHERE resource.project_id = i.project_id
                AND resource.workspace_id = i.workspace_id
-               AND resource.resource_type = 'local_directory')
-ORDER BY i.created_at
+               AND resource.resource_type = 'local_directory'
+               AND ($4::text IS NULL OR resource.resource_ref->>'daemon_id' = $4))
+  AND ($4::text IS NULL OR EXISTS(
+      SELECT 1 FROM agent_task_queue task
+      JOIN agent_runtime runtime ON runtime.id = task.runtime_id
+      WHERE task.issue_id = i.id AND task.status = 'completed'
+        AND runtime.workspace_id = i.workspace_id
+        AND runtime.daemon_id = $4))
+ORDER BY i.id
+LIMIT NULLIF($5::int, 0)
 `
+
+type ListLocalPRSyncIssuesParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	IssueID     pgtype.UUID `json:"issue_id"`
+	AfterID     pgtype.UUID `json:"after_id"`
+	DaemonID    pgtype.Text `json:"daemon_id"`
+	MaxIssues   int32       `json:"max_issues"`
+}
 
 type ListLocalPRSyncIssuesRow struct {
 	ID            pgtype.UUID `json:"id"`
@@ -76,8 +94,14 @@ type ListLocalPRSyncIssuesRow struct {
 
 // Local-directory delivery uses explicit URLs, including those from nested repos.
 // Include already linked PRs so later merges refresh even if delivery text changes.
-func (q *Queries) ListLocalPRSyncIssues(ctx context.Context, workspaceID pgtype.UUID) ([]ListLocalPRSyncIssuesRow, error) {
-	rows, err := q.db.Query(ctx, listLocalPRSyncIssues, workspaceID)
+func (q *Queries) ListLocalPRSyncIssues(ctx context.Context, arg ListLocalPRSyncIssuesParams) ([]ListLocalPRSyncIssuesRow, error) {
+	rows, err := q.db.Query(ctx, listLocalPRSyncIssues,
+		arg.WorkspaceID,
+		arg.IssueID,
+		arg.AfterID,
+		arg.DaemonID,
+		arg.MaxIssues,
+	)
 	if err != nil {
 		return nil, err
 	}

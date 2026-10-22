@@ -165,6 +165,13 @@ func managedFilesCovered(directory string, repositories []string) error {
 		if slices.Contains(ManagedReclaimableArtifactSubpaths(), relative) && entry.IsDir() {
 			return filepath.SkipDir
 		}
+		if isReclaimableFinderMetadata(entry) {
+			return nil
+		}
+		// Only the regenerable cache fingerprint is disposable, not Codex sessions.
+		if entry.Type().IsRegular() && relative == filepath.Join(codexHomeDirName, codexModelsCacheBindingFile) {
+			return nil
+		}
 		if !entry.IsDir() && !slices.Contains([]string{envRootOwnerFile, envRootLockFile, gcMetaFile, managedEnvProvenanceFile, sidecarManifestFile}, relative) {
 			return fmt.Errorf("file outside remote-backed repositories must be preserved: %s", relative)
 		}

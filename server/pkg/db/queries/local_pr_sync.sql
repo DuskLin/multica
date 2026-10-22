@@ -20,12 +20,22 @@ SELECT i.id, i.revision,
            WHERE link.issue_id = i.id AND pr.workspace_id = i.workspace_id
              AND pr.state <> 'merged')::boolean AS had_unmerged_pr
 FROM issue i
-WHERE i.workspace_id = $1
+WHERE i.workspace_id = sqlc.arg(workspace_id)
+  AND (sqlc.narg(issue_id)::uuid IS NULL OR i.id = sqlc.narg(issue_id))
+  AND (sqlc.narg(after_id)::uuid IS NULL OR i.id > sqlc.narg(after_id))
   AND EXISTS(SELECT 1 FROM project_resource resource
              WHERE resource.project_id = i.project_id
                AND resource.workspace_id = i.workspace_id
-               AND resource.resource_type = 'local_directory')
-ORDER BY i.created_at;
+               AND resource.resource_type = 'local_directory'
+               AND (sqlc.narg(daemon_id)::text IS NULL OR resource.resource_ref->>'daemon_id' = sqlc.narg(daemon_id)))
+  AND (sqlc.narg(daemon_id)::text IS NULL OR EXISTS(
+      SELECT 1 FROM agent_task_queue task
+      JOIN agent_runtime runtime ON runtime.id = task.runtime_id
+      WHERE task.issue_id = i.id AND task.status = 'completed'
+        AND runtime.workspace_id = i.workspace_id
+        AND runtime.daemon_id = sqlc.narg(daemon_id)))
+ORDER BY i.id
+LIMIT NULLIF(sqlc.arg(max_issues)::int, 0);
 
 -- name: LockLocalPRSyncIssue :one
 -- Reject a delivery snapshot if its issue changed while GitHub was being read.

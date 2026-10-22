@@ -18,6 +18,8 @@ func TestManagedWorkdirRemovalPreservesRemoteBranchRecord(t *testing.T) {
 	remote := filepath.Join(t.TempDir(), "remote")
 	gitRun(t, source, "clone", "--bare", source, remote)
 	gitRun(t, source, "clone", remote, filepath.Join(directory, "workdir"))
+	writeFile(t, filepath.Join(directory, ".DS_Store"), "Finder metadata")
+	writeFile(t, filepath.Join(directory, codexHomeDirName, codexModelsCacheBindingFile), "cache fingerprint")
 	if err := writeEnvRootOwner(directory, "workspace", "task"); err != nil {
 		t.Fatal(err)
 	}

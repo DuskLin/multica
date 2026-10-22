@@ -309,6 +309,9 @@ func scriptFilesCoveredByRepositories(workDir string, repositories []string) err
 		if slices.Contains(repositories, path) {
 			return filepath.SkipDir
 		}
+		if isReclaimableFinderMetadata(entry) {
+			return nil
+		}
 		if !entry.IsDir() {
 			return fmt.Errorf("script GC skipped file outside verified repositories: %s", path)
 		}

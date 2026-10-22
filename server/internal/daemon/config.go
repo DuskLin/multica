@@ -102,6 +102,8 @@ var DefaultGCArtifactPatterns = []string{"node_modules", ".next", ".turbo"}
 
 // Config holds all daemon configuration.
 type Config struct {
+	PRSyncWorkspaceID              string
+	PRSyncGHPath                   string
 	ServerBaseURL                  string
 	DaemonID                       string
 	LegacyDaemonIDs                []string // historical daemon_ids this machine may have registered under; reported at register time so the server can merge old runtime rows
@@ -241,10 +243,12 @@ func LoadConfig(overrides Overrides) (Config, error) {
 	// purely from env-var configuration. We log a warning and proceed with
 	// no overrides.
 	var profileCommandOverrides map[string]string
+	var prSyncWorkspaceID, prSyncGHPath string
 	if cliCfg, err := cli.LoadCLIConfigForProfile(overrides.Profile); err != nil {
 		slog.Warn("could not load CLI config for backend overrides; proceeding without",
 			"profile", overrides.Profile, "err", err)
 	} else {
+		prSyncWorkspaceID, prSyncGHPath = cliCfg.PRSyncWorkspaceID, cliCfg.PRSyncGHPath
 		if oc := openclawOverrideFrom(cliCfg); oc != nil {
 			applyOpenclawOverride(oc)
 		}
@@ -260,6 +264,11 @@ func LoadConfig(overrides Overrides) (Config, error) {
 				profileCommandOverrides[id] = path
 			}
 		}
+	}
+
+	prSyncWorkspaceID, prSyncGHPath, err = resolvePRSyncConfig(prSyncWorkspaceID, prSyncGHPath)
+	if err != nil {
+		return Config{}, err
 	}
 
 	// Discover installed agent CLIs. Extracted so the periodic workspace sync
@@ -624,6 +633,8 @@ func LoadConfig(overrides Overrides) (Config, error) {
 	}
 
 	return Config{
+		PRSyncWorkspaceID:               prSyncWorkspaceID,
+		PRSyncGHPath:                    prSyncGHPath,
 		ServerBaseURL:                   serverBaseURL,
 		DaemonID:                        daemonID,
 		LegacyDaemonIDs:                 legacyDaemonIDs,

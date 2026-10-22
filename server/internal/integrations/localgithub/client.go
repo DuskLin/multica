@@ -13,16 +13,19 @@ import (
 	"time"
 )
 
-const requestTimeout = 15 * time.Second
+const (
+	requestTimeout       = 15 * time.Second
+	maxSnapshotClockSkew = 5 * time.Minute
+)
 
 var pullRequestURL = regexp.MustCompile(`https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[1-9][0-9]*\b`)
 
 // Reference identifies one PR independently of a parent directory or Git HEAD.
 type Reference struct {
-	URL    string
-	Owner  string
-	Repo   string
-	Number int32
+	URL    string `json:"url"`
+	Owner  string `json:"owner"`
+	Repo   string `json:"repo"`
+	Number int32  `json:"number"`
 }
 
 // Extract returns distinct explicit PR URLs in delivery order, across repositories.
@@ -105,9 +108,23 @@ func (c Client) Fetch(ctx context.Context, ref Reference) (PullRequest, error) {
 	if err := json.Unmarshal(data, &pr); err != nil {
 		return PullRequest{}, fmt.Errorf("decode GitHub PR %s: %w", ref.URL, err)
 	}
-	if pr.Number != ref.Number || !strings.EqualFold(pr.URL, ref.URL) || pr.Title == "" ||
-		pr.CreatedAt.IsZero() || pr.UpdatedAt.IsZero() || (pr.State != "open" && pr.State != "closed") {
-		return PullRequest{}, fmt.Errorf("invalid GitHub PR metadata for %s", ref.URL)
+	if err := pr.Validate(ref); err != nil {
+		return PullRequest{}, err
 	}
 	return pr, nil
+}
+
+// Validate checks an untrusted snapshot against the server-selected PR identity.
+func (pr PullRequest) Validate(ref Reference) error {
+	if pr.Number != ref.Number || !strings.EqualFold(pr.URL, ref.URL) || strings.TrimSpace(pr.Title) == "" ||
+		pr.CreatedAt.IsZero() || pr.UpdatedAt.Before(pr.CreatedAt) ||
+		pr.UpdatedAt.After(time.Now().Add(maxSnapshotClockSkew)) ||
+		(pr.State != "open" && pr.State != "closed") ||
+		(pr.MergedAt != nil && pr.State != "closed") ||
+		(pr.MergedAt != nil && (pr.MergedAt.Before(pr.CreatedAt) || pr.MergedAt.After(pr.UpdatedAt))) ||
+		(pr.ClosedAt != nil && (pr.ClosedAt.Before(pr.CreatedAt) || pr.ClosedAt.After(pr.UpdatedAt))) ||
+		pr.Additions < 0 || pr.Deletions < 0 || pr.ChangedFiles < 0 {
+		return fmt.Errorf("invalid GitHub PR metadata for %s", ref.URL)
+	}
+	return nil
 }
