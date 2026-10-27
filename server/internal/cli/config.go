@@ -178,6 +178,14 @@ type CLIConfig struct {
 // load/save round-trip (see TestCLIConfig_UnknownFieldsArePreserved).
 type BackendOverrides struct {
 	OpenClaw *OpenClawOverride `json:"openclaw,omitempty"`
+	DSH      *DSHOverride      `json:"dsh,omitempty"`
+}
+
+// DSHOverride keeps profile inspection, provisioning, and execution on the same
+// installation. MULTICA_DSH_PATH and DSH_HOME take precedence over these fields.
+type DSHOverride struct {
+	BinaryPath string `json:"binary_path,omitempty"`
+	HomeDir    string `json:"home_dir,omitempty"`
 }
 
 // OpenClawOverride configures the OpenClaw backend. All fields are optional;

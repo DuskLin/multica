@@ -16,6 +16,7 @@ import { CHIP_CLASS } from "./chip";
 import { useT } from "../../../i18n";
 import { UnavailableModelsNote } from "../unavailable-models-note";
 import { ModelSearchHeader } from "../model-search-header";
+import { ModelDiscoveryNotice } from "../model-discovery-notice";
 
 /**
  * Inline model picker for the agent inspector. Lighter cousin of
@@ -252,7 +253,11 @@ export function ModelPicker({
           </PickerItem>
         ))}
 
-      {!modelsQuery.isLoading && filtered.length === 0 && !canCreate && (
+      {runtimeId !== null && !modelsQuery.isLoading && (
+        <ModelDiscoveryNotice runtimeOnline={runtimeOnline} error={modelsQuery.error} />
+      )}
+
+      {runtimeOnline && !modelsQuery.isLoading && !modelsQuery.isError && filtered.length === 0 && !canCreate && (
         <p className="px-3 py-3 text-center text-caption text-muted-foreground">
           {t(($) => $.pickers.model_empty)}
         </p>

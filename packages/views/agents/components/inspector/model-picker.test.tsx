@@ -45,7 +45,7 @@ vi.mock("@multica/core/runtimes", () => ({
     mockRefreshRuntimeModels(...args),
 }));
 
-function renderPicker() {
+function renderPicker(runtimeOnline = true) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -55,7 +55,7 @@ function renderPicker() {
       <QueryClientProvider client={queryClient}>
         <ModelPicker
           runtimeId="rt-claude"
-          runtimeOnline
+          runtimeOnline={runtimeOnline}
           value=""
           onChange={onChange}
         />
@@ -85,6 +85,29 @@ describe("ModelPicker (inspector)", () => {
 
     fireEvent.click(await screen.findByText("Fable"));
     expect(onChange).toHaveBeenCalledWith("claude-fable-5");
+  });
+
+  it("shows discovery failures and preserves manual model selection", async () => {
+    discovery = async () => { throw new Error("DSH profile did not answer"); };
+    const { container, onChange } = renderPicker();
+    openPicker(container);
+
+    expect(await screen.findByText("DSH profile did not answer")).toBeTruthy();
+    expect(screen.queryByText(enAgents.pickers.model_empty)).toBeNull();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "provider/model" } });
+    fireEvent.click(screen.getByText(/provider\/model/, { selector: "span" }));
+    expect(onChange).toHaveBeenCalledWith("provider/model");
+  });
+
+  it("shows an offline runtime without starting discovery or claiming its catalog is empty", async () => {
+    const discover = vi.fn(async () => CLAUDE_CATALOG);
+    discovery = discover;
+    const { container } = renderPicker(false);
+    openPicker(container);
+
+    expect(await screen.findByText(enAgents.model_dropdown.runtime_offline_manual)).toBeTruthy();
+    expect(screen.queryByText(enAgents.pickers.model_empty)).toBeNull();
+    expect(discover).not.toHaveBeenCalled();
   });
 
   it("shows an unavailable model with its reason and no way to select it", async () => {

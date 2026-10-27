@@ -252,6 +252,9 @@ func LoadConfig(overrides Overrides) (Config, error) {
 		if oc := openclawOverrideFrom(cliCfg); oc != nil {
 			applyOpenclawOverride(oc)
 		}
+		if cliCfg.Backends != nil {
+			applyDshOverride(cliCfg.Backends.DSH)
+		}
 		// Per-machine custom-runtime command path overrides (MUL-3284).
 		// Copy into our own map so later mutation of the loaded config can't
 		// alias daemon state, and so an empty map normalizes to nil.

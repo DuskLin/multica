@@ -11,9 +11,14 @@ import (
 	"time"
 )
 
+const (
+	dshSmokeTurnTimeout = 90 * time.Second
+	dshSmokeTurnCount   = 3
+)
+
 // TestDshRealRuntimeSmoke is opt-in because it calls the configured DeepSeek
 // model and consumes API quota. It exercises the complete Multica backend,
-// installed DSH profile, model provider, and terminal-result path.
+// installed DSH profile, model provider, session resume, and shell-tool path.
 func TestDshRealRuntimeSmoke(t *testing.T) {
 	if os.Getenv("MULTICA_RUN_REAL_AGENT_SMOKE") != "1" {
 		t.Skip("set MULTICA_RUN_REAL_AGENT_SMOKE=1 to run the DSH integration smoke")
@@ -26,12 +31,13 @@ func TestDshRealRuntimeSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), dshSmokeTurnCount*dshSmokeTurnTimeout)
 	defer cancel()
 	cwd := t.TempDir()
+	model := os.Getenv("MULTICA_DSH_MODEL")
 	session, err := b.Execute(ctx, "Remember the code word PINEAPPLE. Reply with exactly DSH_MULTICA_OK and nothing else.", ExecOptions{
-		Cwd: cwd, Model: "deepseek-official/deepseek-v4-flash", ThinkingLevel: "off",
-		Timeout: 90 * time.Second,
+		Cwd: cwd, Model: model,
+		Timeout: dshSmokeTurnTimeout,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -50,8 +56,8 @@ func TestDshRealRuntimeSmoke(t *testing.T) {
 	}
 
 	resumed, err := b.Execute(ctx, "Reply with exactly the code word from the previous turn and nothing else.", ExecOptions{
-		Cwd: cwd, Model: "deepseek-official/deepseek-v4-flash", ThinkingLevel: "off",
-		ResumeSessionID: result.SessionID, Timeout: 90 * time.Second,
+		Cwd: cwd, Model: model,
+		ResumeSessionID: result.SessionID, Timeout: dshSmokeTurnTimeout,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -67,5 +73,27 @@ func TestDshRealRuntimeSmoke(t *testing.T) {
 	}
 	if resumeResult.SessionID != result.SessionID {
 		t.Fatalf("DSH resume changed session ID: %q -> %q", result.SessionID, resumeResult.SessionID)
+	}
+
+	const toolMarker = "DSH_TOOL_SMOKE_OK"
+	toolSession, err := b.Execute(ctx, "Run the bash tool once with the command printf "+toolMarker+". Then reply exactly "+toolMarker+". Do not access files, networks, or any external service through tools.", ExecOptions{
+		Cwd: cwd, Model: model,
+		ResumeSessionID: result.SessionID, Timeout: dshSmokeTurnTimeout,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sawToolResult := false
+	for message := range toolSession.Messages {
+		if message.Type == MessageToolResult && message.Tool == "bash" && strings.Contains(message.Output, toolMarker) {
+			sawToolResult = true
+		}
+	}
+	toolResult := <-toolSession.Result
+	if toolResult.Status != "completed" {
+		t.Fatalf("DSH tool smoke failed: status=%q error=%q", toolResult.Status, toolResult.Error)
+	}
+	if !sawToolResult || strings.TrimSpace(toolResult.Output) != toolMarker {
+		t.Fatalf("DSH tool execution was not confirmed: saw_result=%v output=%q", sawToolResult, toolResult.Output)
 	}
 }

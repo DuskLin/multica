@@ -449,10 +449,18 @@ func discoverDshModels(ctx context.Context, runtimeCmd Command) ([]Model, error)
 		return nil, err
 	}
 	var models []Model
+	var protocolErr error
 	scanner := newAgentStreamScanner(stdout)
 	for scanner.Scan() {
 		var frame dshFrame
-		if json.Unmarshal(scanner.Bytes(), &frame) != nil || frame.Version != DshProtocolVersion || frame.Type != "models" {
+		if json.Unmarshal(scanner.Bytes(), &frame) != nil || frame.Version != DshProtocolVersion {
+			continue
+		}
+		if frame.Type == "protocol_error" {
+			protocolErr = fmt.Errorf("dsh model discovery: %s: %s", frame.Code, frame.Message)
+			continue
+		}
+		if frame.Type != "models" {
 			continue
 		}
 		for _, item := range frame.Models {
@@ -468,6 +476,9 @@ func discoverDshModels(ctx context.Context, runtimeCmd Command) ([]Model, error)
 	releaseProcessGroup(cmd)
 	if scanErr != nil {
 		return nil, scanErr
+	}
+	if protocolErr != nil {
+		return nil, protocolErr
 	}
 	if exitErr != nil {
 		return nil, exitErr

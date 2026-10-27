@@ -58,13 +58,30 @@ Multica 当前会检测以下命令：
 
 Muse Code 需要 1.4.10 或更高版本。请按照[官方安装和登录指南](https://dev.meta.ai/docs/muse-code)操作，并确认 `muse` 已加入 `PATH`。Multica 通过 MSP 获取模型列表，支持继续已有会话。
 
-使用 DeepSeek Harness 时，请先安装 Node.js 20+ 并运行 `npm install -g @deepseek-ai/dsh`，然后为它安装 Multica 运行时 profile —— 这个 bundle 实现了 Multica 驱动的 `--stdio` 协议，也是单独的 `dsh` 无法直接使用的原因。把 `MULTICA_DSH_PROFILE_BUNDLE` 设为要安装的 bundle，守护进程会替你安装；也可以自己执行 `dsh plugin --profile multica add <bundle>`。`<bundle>` 可以是 `dsh plugin` 接受的任意形式——npm 包名、目录，或打包好的 tarball——Multica 自己的桥接实现在 [multica-ai/dsh-multica-runtime](https://github.com/multica-ai/dsh-multica-runtime)。它目前还没有发布到公共 npm registry（[multica#6936](https://github.com/multica-ai/multica/issues/6936)），所以现阶段自托管团队的做法是：从该仓库自行构建，然后把变量指向构建产物目录；如果运行守护进程的机器和构建机器不是同一台，就指向 `npm pack` 产出的 tarball。等桥接发布之后，直接填包名是最省事的选择。无论选哪种，都优先用你们自己发布或构建的产物：这个值会在没有二次确认的情况下被装进每一台守护进程宿主的 DSH 家目录，填一个未经审查的第三方包是供应链决策，不是图方便。如果你装的是 DeepSeek Harness Desktop 而不是 npm 包，守护进程也会去找这个应用生成的 CLI shim，位置在它自己的用户级数据目录下：macOS 是 `~/Library/Application Support/DSH Desktop`，Windows 是 `%APPDATA%\DSH Desktop`。Windows 上这是漫游应用数据目录，不是安装目录：应用本身装在 Program Files 或 `%LOCALAPPDATA%\Programs`，但它驱动的 CLI 和其他用户级状态放在一起。这些路径里的版本层是生成出来的 id，所以守护进程会枚举并优先取最新的一份。不需要 PATH 上有别的东西——生成的 shim 会用绝对路径调用应用自带的运行时。如果 DSH Desktop 装在非默认位置，请用 `MULTICA_DSH_PATH` 指向那个 shim。守护进程只有在 `dsh --profile multica --probe` 成功后才注册 DeepSeek Harness；失败时会在 `/health` 报告缺少 profile。启动守护进程前请设置 `DEEPSEEK_API_KEY`（或在 dsh 自身设置中保存）。
+使用 DeepSeek Harness 时，请先安装 Node.js 22.19 及以上的 22.x 版本或 24+，并运行 `npm install -g @deepseek-ai/dsh`，然后为它安装 Multica 运行时 profile —— 这个 bundle 实现了 Multica 驱动的 `--stdio` 协议，也是单独的 `dsh` 无法直接使用的原因。把 `MULTICA_DSH_PROFILE_BUNDLE` 设为要安装的 bundle，守护进程会替你安装；也可以自己执行 `dsh plugin --profile multica add <bundle>`。`<bundle>` 可以是 `dsh plugin` 接受的任意形式——npm 包名、目录，或打包好的 tarball——Multica 自己的桥接实现在 [multica-ai/dsh-multica-runtime](https://github.com/multica-ai/dsh-multica-runtime)。它目前还没有发布到公共 npm registry（[multica#6936](https://github.com/multica-ai/multica/issues/6936)），所以现阶段自托管团队的做法是：从该仓库自行构建，然后把变量指向构建产物目录；如果运行守护进程的机器和构建机器不是同一台，就指向 `npm pack` 产出的 tarball。等桥接发布之后，直接填包名是最省事的选择。无论选哪种，都优先用你们自己发布或构建的产物：这个值会在没有二次确认的情况下被装进每一台守护进程宿主的 DSH 家目录，填一个未经审查的第三方包是供应链决策，不是图方便。如果你装的是 DeepSeek Harness Desktop 而不是 npm 包，守护进程也会去找这个应用生成的 CLI shim，位置在它自己的用户级数据目录下：macOS 是 `~/Library/Application Support/DSH Desktop`，Windows 是 `%APPDATA%\DSH Desktop`。Windows 上这是漫游应用数据目录，不是安装目录：应用本身装在 Program Files 或 `%LOCALAPPDATA%\Programs`，但它驱动的 CLI 和其他用户级状态放在一起。这些路径里的版本层是生成出来的 id，所以守护进程会枚举并优先取最新的一份。不需要 PATH 上有别的东西——生成的 shim 会用绝对路径调用应用自带的运行时。如果 DSH Desktop 装在非默认位置，请用 `MULTICA_DSH_PATH` 指向那个 shim。守护进程只有在 `dsh --profile multica --probe` 成功后才注册 DeepSeek Harness；失败时会在 `/health` 区分缺少 profile、协议不兼容和暂时无法探测。启动守护进程前请设置 `DEEPSEEK_API_KEY`（或在 dsh 自身设置中保存）。
 
 这些登录凭据由工具保存在本机。Multica 不会接收 Claude、Codex、Cursor 或其他 CLI 的登录 token。
 
 <Callout type="info">
 Antigravity 需要 1.1.10 或更高版本，Claude Code 需要 2.0.0 或更高版本，Codex 需要 0.100.0 或更高版本，Copilot 需要 1.0.0 或更高版本，Grok 需要 0.2.89 或更高版本，Qwen Code 需要 0.20.0 或更高版本，MiniMax Code 需要 0.1.2 或更高版本，OpenCode 需要 1.1.54 或更高版本。低于最低版本时，守护进程不会注册对应运行时。
 </Callout>
+
+如果 DSH 启动脚本使用独立目录，请在启动守护进程前显式设置相同的 `DSH_HOME`；也可以在当前 Multica CLI profile 的 `config.json` 中持久化配置：
+
+```json
+{
+  "backends": {
+    "dsh": {
+      "binary_path": "/absolute/path/to/dsh",
+      "home_dir": "/absolute/path/to/dsh-home"
+    }
+  }
+}
+```
+
+升级 DSH 时，同时更新兼容的桥接 bundle 及其依赖，并核对 `engines.dsh` 和 peer 依赖约束，避免任务循环与工具服务来自不同版本。
+
+将此配置合并到现有文件后重启守护进程。环境变量 `MULTICA_DSH_PATH` 和 `DSH_HOME` 优先于文件配置。检查、安装和执行必须使用同一目录；未共享目录时，探测失败会保留为未知状态，避免把启动脚本中的独立 profile 误判为未安装。`dsh --profile multica` 还须指定一种运行模式：`--probe` 检查协议、`--list-models` 列出模型、`--stdio` 供 Multica 执行任务。
 
 ## 3. 确认守护进程能够找到命令
 

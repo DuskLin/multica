@@ -31,6 +31,7 @@ Multica is a task management platform where people and agents collaborate on iss
 Use `Makefile`, workspace `package.json` files, and `pnpm-workspace.yaml` for current commands and versions. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and worktree operations.
 
 - Use the checkout's managed environment: `make up`, `make status`, `make down`. `make down` preserves data; `make destroy` removes the environment and its data.
+- DSH 的 profile 检查、安装和执行使用同一个 `DSH_HOME`；独立安装通过当前 CLI profile 的 `backends.dsh.home_dir` 和 `binary_path` 配置，环境变量优先。未显式共享目录时，默认目录中缺少文件不能证明启动脚本选择的 profile 未安装。
 - 本地 GitHub CLI PR 同步通过 `MULTICA_LOCAL_PR_SYNC_WORKSPACE_ID` 为单个工作区显式启用；详见 `.env.example` 和 GitHub 集成文档。保留回环地址及云端配置检查，测试使用模拟 CLI 可执行文件。
 - 本机 daemon 向远端同步 PR 通过 profile 的 `pr_sync_workspace_id` 显式启用，仅使用本机 GitHub CLI。服务端校验运行时所属用户或 daemon 身份、工作区及本机项目资源归属，并核对完整交付快照；不上传 GitHub 凭据，不放宽本地后端同步的回环限制。
 - 脚本工作目录回收与执行必须共享目录锁；仅对已完成任务、归属有效且所有子项目成果均可从远端恢复的目录执行回收。恢复须先运行初始化脚本，再切回记录的子项目分支，成功后才能发布初始化完成标记。详见项目资源文档；测试使用临时本地远端仓库。

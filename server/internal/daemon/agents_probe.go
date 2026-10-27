@@ -405,11 +405,9 @@ const (
 // dshProbeTimeout bounds one `--probe`.
 //
 // The healthy path boots a whole DSH process — on a Desktop install that means
-// starting the app's Electron binary as node — and then prints one line. Five
-// seconds was too thin for that on a cold VM, and cutting a slow-but-healthy
-// probe short reports it as unusable. This is generous instead, because the
-// cost is paid only by a probe that has nothing to say, and it stays well
-// inside the daemon's own 45s startup window.
+// starting the app's Electron binary as node and waiting for configured MCP
+// plugins — and then prints one line. Allow their initialization to finish
+// without exhausting the daemon's own 45s startup window.
 //
 // A missing profile does spend the whole budget here: DSH does not refuse the
 // probe, it hangs. That is bounded by construction — the state ends the moment
@@ -417,7 +415,7 @@ const (
 // telling that hang apart from a busy machine.
 //
 // A var so tests can shrink it instead of waiting out a real timeout.
-var dshProbeTimeout = 15 * time.Second
+var dshProbeTimeout = 30 * time.Second
 
 // parseDshProbeFrame returns the first decodable probe frame in the output.
 func parseDshProbeFrame(output string) (dshProbeFrame, bool) {
@@ -473,22 +471,10 @@ func probeDshMulticaProfile(ctx context.Context, executablePath string) dshProbe
 		return dshProbeUnavailable
 	}
 
-	// Otherwise the manifest decides, and how the probe failed does not.
-	//
-	// Timeouts used to be classed transient on the reasoning that a busy
-	// machine is not a missing profile. That reasoning does not survive
-	// contact with DSH: asked for a profile it does not have, `--probe` does
-	// not refuse — it HANGS, printing nothing, until something kills it. So a
-	// timeout is the ordinary way a missing profile presents, and treating it
-	// as transient made the profile undetectable on exactly the host the
-	// install exists for: the daemon reported "the probe returned no usable
-	// answer", never started the install, and exited for want of a runtime.
-	//
-	// The manifest is the same file DSH's own loadProfile consults before it
-	// refuses to boot, so a confirmed-absent one is evidence, not a guess —
-	// while a manifest that IS present keeps every failure transient, which is
-	// what protects a working install from being overwritten during an upgrade.
-	if !dshMulticaProfilePresent() {
+	// A launcher can select its own home. An absent manifest in the daemon's
+	// implicit ~/.dsh therefore cannot prove the launched profile is missing.
+	// Only an explicitly shared home makes this filesystem verdict authoritative.
+	if strings.TrimSpace(os.Getenv("DSH_HOME")) != "" && !dshMulticaProfilePresent() {
 		return dshProbeMissingProfile
 	}
 	return dshProbeUnavailable

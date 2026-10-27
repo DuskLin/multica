@@ -2442,7 +2442,7 @@ const dshIncompatibleProfileReason = "the Multica runtime profile answers with a
 // probe frame at all — a timeout, a failed exec, or unparseable output. It is
 // deliberately not phrased as a version problem, which would send a reader
 // looking in the wrong place.
-const dshProbeFailedReason = "the DSH runtime profile probe returned no usable answer"
+const dshProbeFailedReason = "the DSH runtime profile probe returned no usable answer; ensure DSH_HOME or backends.dsh.home_dir matches the launcher's profile directory"
 
 // runtimeVerdict is one provider's confirmed verdict: the human reason that
 // goes to /health and the daemon log, plus — when the cause is one the user has

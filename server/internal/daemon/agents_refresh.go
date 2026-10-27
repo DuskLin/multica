@@ -3,7 +3,9 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"os"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -205,6 +207,11 @@ func (m dshProfileMismatch) forcesEveryTick() bool {
 // live state, so a profile removed before the daemon's first look — or while it
 // was not looking — is caught on the very next tick rather than never.
 func (d *Daemon) dshRuntimeProfileMismatch() dshProfileMismatch {
+	// An implicit home can disagree with a launcher's own DSH_HOME. Do not
+	// schedule repeated full probes from a filesystem fact we cannot verify.
+	if strings.TrimSpace(os.Getenv("DSH_HOME")) == "" {
+		return dshMismatchNone
+	}
 	registered := d.dshRuntimeRegistered()
 	if registered == dshMulticaProfilePresent() {
 		return dshMismatchNone

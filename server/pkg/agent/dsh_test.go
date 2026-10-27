@@ -42,6 +42,17 @@ func TestBuildDshMCPServers(t *testing.T) {
 	}
 }
 
+func TestDiscoverDshModelsPreservesProtocolErrors(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell fixture")
+	}
+	bin := writeDshFixture(t, `printf '%s\n' '{"v":1,"type":"protocol_error","code":"STARTUP_FAILED","message":"DSH model services are unavailable"}'; exit 1`)
+	_, err := discoverDshModels(context.Background(), NewCommand(bin, nil))
+	if err == nil || !strings.Contains(err.Error(), "DSH model services are unavailable") {
+		t.Fatalf("model discovery error = %v, want the runtime's reason", err)
+	}
+}
+
 func TestBuildDshMCPServersRejectsSSE(t *testing.T) {
 	raw := json.RawMessage(`{"mcpServers":{"legacy":{"type":"sse","url":"https://mcp.example/sse"}}}`)
 	if _, err := buildDshMCPServers(raw, slog.Default()); err == nil || !strings.Contains(err.Error(), "SSE") {

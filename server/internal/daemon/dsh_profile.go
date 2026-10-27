@@ -13,10 +13,29 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/multica-ai/multica/server/internal/cli"
 	"github.com/multica-ai/multica/server/internal/daemon/processtree"
 	"github.com/multica-ai/multica/server/pkg/agent"
 	"github.com/multica-ai/multica/server/pkg/redact"
 )
+
+// applyDshOverride shares an explicitly configured home with every DSH consumer.
+// It runs once at startup and leaves operator-provided environment values intact.
+func applyDshOverride(override *cli.DSHOverride) {
+	if override == nil {
+		return
+	}
+	for key, value := range map[string]string{
+		"MULTICA_DSH_PATH": override.BinaryPath,
+		"DSH_HOME":         override.HomeDir,
+	} {
+		if value != "" {
+			if _, exists := os.LookupEnv(key); !exists {
+				_ = os.Setenv(key, value)
+			}
+		}
+	}
+}
 
 // The DSH backend drives `dsh --profile multica --stdio`, and that profile is
 // what supplies the protocol: DSH ships no machine-drivable mode of its own.

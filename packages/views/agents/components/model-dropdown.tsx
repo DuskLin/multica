@@ -17,6 +17,7 @@ import { Label } from "@multica/ui/components/ui/label";
 import { useT } from "../../i18n";
 import { UnavailableModelsNote } from "./unavailable-models-note";
 import { ModelSearchHeader } from "./model-search-header";
+import { ModelDiscoveryNotice } from "./model-discovery-notice";
 
 // ModelDropdown renders a searchable, creatable model picker for an agent.
 // It fetches the supported-model catalog from the selected runtime — the
@@ -239,31 +240,8 @@ export function ModelDropdown({
                 </div>
               ))}
 
-            {/* A failed discovery reports WHY here rather than in the label
-                row's caption, which has no room for a sentence. The runtime's
-                own words are the actionable part — hermes, for one, names the
-                exact command to run — so they are rendered verbatim and left
-                selectable. Paired with the manual-entry prompt, because a
-                reason with no way forward is just a nicer dead end. */}
             {!modelsQuery.isLoading && modelsQuery.isError && (
-              <div className="px-3 py-4 text-body text-muted-foreground">
-                <div className="flex items-start gap-2">
-                  <Info className="mt-0.5 h-4 w-4 shrink-0" />
-                  <div className="min-w-0">
-                    <div className="font-medium text-foreground">
-                      {t(($) => $.pickers.model_discovery_failed_title)}
-                    </div>
-                    {discoveryError && (
-                      <div className="mt-1 whitespace-pre-wrap break-words text-caption select-text">
-                        {discoveryError}
-                      </div>
-                    )}
-                    <div className="mt-1.5 text-caption">
-                      {t(($) => $.pickers.model_discovery_failed_hint)}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <ModelDiscoveryNotice runtimeOnline={runtimeOnline} error={modelsQuery.error} />
             )}
 
             {!modelsQuery.isLoading && !modelsQuery.isError && (
@@ -273,7 +251,7 @@ export function ModelDropdown({
               />
             )}
 
-            {!modelsQuery.isLoading &&
+            {runtimeOnline && !modelsQuery.isLoading &&
               !modelsQuery.isError &&
               Object.keys(filtered).length === 0 &&
               !canCreate && (
